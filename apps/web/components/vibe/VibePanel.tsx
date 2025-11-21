@@ -172,7 +172,7 @@ export function VibePanel({
     setSubmitError(null);
 
     try {
-      // Prepare constraints with mask information
+      // Prepare constraints with mask information and asset quality
       const constraints: any = {};
       if (maskType !== 'none') {
         constraints.maskType = maskType;
@@ -180,6 +180,8 @@ export function VibePanel({
           constraints.maskImage = maskImageBase64;
         }
       }
+      // Asset quality will be set from 3D viewer controls, default to high
+      constraints.assetQuality = 'high';
 
       // Create layout generation job
       const response = await fetch('/api/jobs', {

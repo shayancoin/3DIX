@@ -125,6 +125,7 @@ export interface LayoutRequest {
     existingObjects?: SceneObject2D[];
     maskType?: 'none' | 'room_boundary' | 'wall_mask' | 'door_window_mask';
     maskImage?: string; // base64 encoded image
+    assetQuality?: 'low' | 'medium' | 'high'; // Quality level for 3D asset retrieval
   };
 }
 

@@ -28,6 +28,8 @@ export default function StudioPage() {
   const [selectedLayoutObjectId, setSelectedLayoutObjectId] = useState<string | undefined>();
   const [selectedCanvasObjectId, setSelectedCanvasObjectId] = useState<string | undefined>();
   const [viewMode, setViewMode] = useState<'canvas' | 'semantic' | '3d'>('canvas');
+  const [meshQuality, setMeshQuality] = useState<'low' | 'medium' | 'high'>('high');
+  const [useMeshes, setUseMeshes] = useState(true);
   
   // Sync selection between 2D and 3D views
   const handleObjectSelect = useCallback((objectId: string | undefined, source: '2d' | '3d' | 'semantic') => {
@@ -246,18 +248,48 @@ export default function StudioPage() {
               />
             </div>
           ) : (
-            <div className="flex-1 relative min-h-0">
-              <CanvasShell>
-                <LayoutScene3D
-                  objects={layoutObjects}
-                  roomWidth={roomWidth}
-                  roomLength={roomLength}
-                  selectedObjectId={selectedLayoutObjectId}
-                  onObjectClick={(id) => handleObjectSelect(id, '3d')}
-                  showGrid={true}
-                  showLabels={true}
-                />
-              </CanvasShell>
+            <div className="flex-1 relative min-h-0 flex flex-col">
+              {/* Quality Controls */}
+              <div className="p-2 border-b bg-white flex items-center gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={useMeshes}
+                    onChange={(e) => setUseMeshes(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <span>Use 3D Meshes</span>
+                </label>
+                {useMeshes && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">Quality:</span>
+                    <select
+                      value={meshQuality}
+                      onChange={(e) => setMeshQuality(e.target.value as 'low' | 'medium' | 'high')}
+                      className="px-2 py-1 text-sm border rounded"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 relative min-h-0">
+                <CanvasShell>
+                  <LayoutScene3D
+                    objects={layoutObjects}
+                    roomWidth={roomWidth}
+                    roomLength={roomLength}
+                    selectedObjectId={selectedLayoutObjectId}
+                    onObjectClick={(id) => handleObjectSelect(id, '3d')}
+                    showGrid={true}
+                    showLabels={true}
+                    meshQuality={meshQuality}
+                    useMeshes={useMeshes}
+                  />
+                </CanvasShell>
+              </div>
             </div>
           )}
         </div>

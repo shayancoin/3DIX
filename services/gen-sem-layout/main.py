@@ -11,6 +11,7 @@ import uvicorn
 import time
 import os
 from semlayoutdiff_integration import SemLayoutDiffIntegration
+from asset_retrieval import AssetRetrieval
 
 app = FastAPI(
     title="3DIX Layout Generation Service",
@@ -36,6 +37,13 @@ semlayoutdiff = SemLayoutDiffIntegration(
     sldn_checkpoint_path=sldn_checkpoint,
     apm_checkpoint_path=apm_checkpoint,
     config_path=config_path
+)
+
+# Initialize asset retrieval
+asset_retrieval = AssetRetrieval(
+    dataset_path=os.getenv("THREED_FUTURE_DATASET_PATH"),
+    model_info_path=os.getenv("THREED_FUTURE_MODEL_INFO_PATH"),
+    base_url=os.getenv("ASSET_BASE_URL", "http://localhost:8001/assets")
 )
 
 
@@ -98,6 +106,7 @@ class LayoutConstraints(BaseModel):
     existingObjects: Optional[List[SceneObject2D]] = None
     maskType: Optional[str] = None  # 'none' | 'room_boundary' | 'wall_mask' | 'door_window_mask'
     maskImage: Optional[str] = None  # base64 encoded image
+    assetQuality: Optional[str] = "high"  # 'low' | 'medium' | 'high'
 
 
 class LayoutRequest(BaseModel):
@@ -139,6 +148,25 @@ async def root():
         "version": "0.1.0",
         "status": "stub"
     }
+
+
+@app.get("/assets/{model_id}/{filename}")
+async def serve_asset(model_id: str, filename: str):
+    """
+    Serve asset files (glTF, textures, etc.).
+    In production, this would serve files from a storage system (S3, etc.).
+    """
+    # TODO: Implement actual asset serving
+    # For now, return a 404 or redirect to a CDN
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": "Asset not found",
+            "message": f"Asset serving not implemented. Model ID: {model_id}, File: {filename}",
+            "note": "In production, configure ASSET_BASE_URL to point to your asset storage"
+        }
+    )
 
 
 @app.post("/generate", response_model=LayoutResponse)
@@ -188,19 +216,38 @@ async def generate_layout(request: LayoutRequest):
         room_type=room_type
     )
     
-    # Convert predictions to LayoutObject format
+    # Retrieve assets for layout objects
+    quality = request.constraints.assetQuality if request.constraints and request.constraints.assetQuality else "high"
+    assets = asset_retrieval.retrieve_assets_for_layout(attribute_predictions, quality)
+    
+    # Convert predictions to LayoutObject format with asset information
     objects = []
+    asset_map = {asset["objectId"]: asset for asset in assets if "objectId" in asset}
+    
     for i, pred in enumerate(attribute_predictions):
+        obj_id = f"obj-{i+1}"
+        asset = asset_map.get(obj_id)
+        
+        metadata = {
+            "source": "semlayoutdiff" if semlayoutdiff.initialized else "stub"
+        }
+        
+        if asset:
+            metadata.update({
+                "assetId": asset["modelId"],
+                "assetUrl": asset["url"],
+                "textureUrl": asset.get("textureUrl"),
+                "assetQuality": asset["quality"],
+            })
+        
         objects.append(
             LayoutObject(
-                id=f"obj-{i+1}",
+                id=obj_id,
                 category=pred["category"],
                 position=pred["position"],
                 size=pred["size"],
                 orientation=pred["orientation"],
-                metadata={
-                    "source": "semlayoutdiff" if semlayoutdiff.initialized else "stub"
-                }
+                metadata=metadata
             )
         )
     
