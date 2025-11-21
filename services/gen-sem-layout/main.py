@@ -13,6 +13,8 @@ import os
 from semlayoutdiff_integration import SemLayoutDiffIntegration
 from asset_retrieval import AssetRetrieval
 from vibe_encoder import VibeEncoder
+from constraint_solver import ConstraintSolver, LayoutObject as ConstraintLayoutObject
+from room_configs import get_room_type_config
 
 app = FastAPI(
     title="3DIX Layout Generation Service",
@@ -265,17 +267,82 @@ async def generate_layout(request: LayoutRequest):
             )
         )
     
+    # Apply constraint solver for post-processing
+    room_config = get_room_type_config(room_type)
+    solver = ConstraintSolver(room_config)
+    
+    # Convert LayoutObject to ConstraintLayoutObject
+    constraint_objects = []
+    for obj in objects:
+        constraint_objects.append(
+            ConstraintLayoutObject(
+                id=obj.id,
+                category=obj.category,
+                position=tuple(obj.position),
+                size=tuple(obj.size),
+                orientation=obj.orientation,
+                metadata=obj.metadata
+            )
+        )
+    
+    # Solve constraints (adjusts objects and validates)
+    adjusted_objects, validation = solver.solve_constraints(constraint_objects)
+    
+    # Convert back to LayoutObject format
+    final_objects = []
+    for obj in adjusted_objects:
+        final_objects.append(
+            LayoutObject(
+                id=obj.id,
+                category=obj.category,
+                position=list(obj.position),
+                size=list(obj.size),
+                orientation=obj.orientation,
+                metadata={
+                    **(obj.metadata or {}),
+                    "constraintValidated": True,
+                }
+            )
+        )
+    
     # Convert semantic map to base64 for response
     semantic_map_b64 = semlayoutdiff.semantic_map_to_base64(semantic_map)
     
     processing_time = time.time() - start_time
+    
+    # Prepare constraint validation metadata
+    constraint_metadata = {
+        "valid": validation.valid,
+        "errorCount": len(validation.errors),
+        "warningCount": len(validation.warnings),
+        "suggestionCount": len(validation.suggestions),
+        "errors": [
+            {
+                "type": err.type,
+                "categoryId": err.category_id,
+                "objectId": err.object_id,
+                "message": err.message,
+                "severity": err.severity,
+            }
+            for err in validation.errors
+        ],
+        "warnings": [
+            {
+                "type": warn.type,
+                "categoryId": warn.category_id,
+                "objectId": warn.object_id,
+                "message": warn.message,
+            }
+            for warn in validation.warnings
+        ],
+    }
     
     return LayoutResponse(
         jobId=request.roomId,
         status="completed",
         mask=semantic_map_b64,
         semanticMap=semantic_map_b64,
-        objects=objects,
+        objects=final_objects,
         metadata={
             "processingTime": processing_time,
             "modelVersion": "semlayoutdiff-v1.0" if semlayoutdiff.initialized else "stub-v1.0",
@@ -283,6 +350,7 @@ async def generate_layout(request: LayoutRequest):
             "layoutMetadata": layout_metadata,
             "vibeEncoding": vibe_encoded.get("metadata", {}),
             "categoryBias": category_bias,
+            "constraintValidation": constraint_metadata,
         }
     )
 

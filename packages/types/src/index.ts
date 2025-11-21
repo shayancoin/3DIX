@@ -167,3 +167,6 @@ export type {
   LayoutResponse,
   GenerationJobStatus,
 };
+
+// Export room configuration types
+export * from './room-configs';

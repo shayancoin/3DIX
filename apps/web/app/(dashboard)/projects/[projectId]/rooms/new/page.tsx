@@ -6,17 +6,50 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Sparkles } from 'lucide-react';
 import Link from 'next/link';
-import { RoomType } from '@/lib/db/schema';
+import { RoomType as SchemaRoomType } from '@/lib/db/schema';
+import { RoomType, getRoomTypeConfig } from '@3dix/types';
+import { RoomWizard } from '@/components/wizards/RoomWizard';
+
+// Map schema RoomType to types RoomType
+function mapSchemaRoomTypeToType(schemaType: SchemaRoomType): RoomType {
+  const mapping: Record<string, RoomType> = {
+    KITCHEN: 'kitchen',
+    BEDROOM: 'bedroom',
+    BATHROOM: 'bathroom',
+    LIVING_ROOM: 'living_room',
+    DINING_ROOM: 'dining_room',
+    OFFICE: 'office',
+    CLOSET: 'closet',
+    OTHER: 'other',
+  };
+  return mapping[schemaType] || 'other';
+}
+
+function mapTypeRoomTypeToSchema(type: RoomType): SchemaRoomType {
+  const mapping: Record<RoomType, SchemaRoomType> = {
+    kitchen: SchemaRoomType.KITCHEN,
+    bedroom: SchemaRoomType.BEDROOM,
+    bathroom: SchemaRoomType.BATHROOM,
+    living_room: SchemaRoomType.LIVING_ROOM,
+    dining_room: SchemaRoomType.DINING_ROOM,
+    office: SchemaRoomType.OFFICE,
+    closet: SchemaRoomType.CLOSET,
+    other: SchemaRoomType.OTHER,
+  };
+  return mapping[type];
+}
 
 export default function NewRoomPage() {
   const router = useRouter();
   const params = useParams();
   const projectId = params.projectId as string;
 
+  const [useWizard, setUseWizard] = useState(false);
+  const [wizardRoomType, setWizardRoomType] = useState<RoomType>('kitchen');
   const [name, setName] = useState('');
-  const [roomType, setRoomType] = useState<RoomType>(RoomType.KITCHEN);
+  const [roomType, setRoomType] = useState<SchemaRoomType>(SchemaRoomType.KITCHEN);
   const [width, setWidth] = useState('');
   const [height, setHeight] = useState('');
   const [length, setLength] = useState('');
@@ -57,6 +90,59 @@ export default function NewRoomPage() {
     }
   };
 
+  const handleWizardComplete = async (data: {
+    name: string;
+    dimensions: { width: number; length: number; height: number };
+    selectedCategories: string[];
+  }) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}/rooms`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: data.name,
+          roomType: mapTypeRoomTypeToSchema(wizardRoomType),
+          width: data.dimensions.width,
+          height: data.dimensions.height,
+          length: data.dimensions.length,
+          selectedCategories: data.selectedCategories, // Store in metadata
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create room');
+      }
+
+      const room = await response.json();
+      router.push(`/projects/${projectId}/rooms/${room.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      setLoading(false);
+    }
+  };
+
+  if (useWizard) {
+    return (
+      <div className="container mx-auto p-6">
+        <Link href={`/projects/${projectId}`} className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Project
+        </Link>
+        <RoomWizard
+          roomType={wizardRoomType}
+          onComplete={handleWizardComplete}
+          onCancel={() => setUseWizard(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-6 max-w-2xl">
       <Link href={`/projects/${projectId}`} className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6">
@@ -65,7 +151,20 @@ export default function NewRoomPage() {
       </Link>
 
       <Card className="p-6">
-        <h1 className="text-3xl font-bold mb-6">Create New Room</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold">Create New Room</h1>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setWizardRoomType(mapSchemaRoomTypeToType(roomType));
+              setUseWizard(true);
+            }}
+            className="flex items-center gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            Use Wizard
+          </Button>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
