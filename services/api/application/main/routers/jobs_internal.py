@@ -3,25 +3,29 @@ Internal API routes for job processing.
 These endpoints are used by the job worker and internal services.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
-from application.main.services.job_worker import JobWorker
-from application.main.services.layout_service import LayoutService
+from application.main.services.stub_worker import StubWorker
+from application.main.infrastructure.database.postgresql.operations import Postgresql
 
 router = APIRouter()
-layout_service = LayoutService()
 
 # Global worker instance (in production, use a proper task queue)
-_worker: Optional[JobWorker] = None
+_worker: Optional[StubWorker] = None
 
 
-def get_worker() -> JobWorker:
+def get_db() -> Postgresql:
+    """Dependency to get PostgreSQL database instance."""
+    return Postgresql()
+
+
+def get_worker() -> StubWorker:
     """Get or create worker instance."""
     global _worker
     if _worker is None:
-        _worker = JobWorker()
+        _worker = StubWorker()
     return _worker
 
 
@@ -39,10 +43,12 @@ async def process_job(job_id: int, request_data: dict):
 
 
 @router.get("/queued")
-async def get_queued_jobs():
+async def get_queued_jobs(db: Postgresql = Depends(get_db)):
     """
     Get queued jobs for processing.
-    Note: In a real implementation, this would query the database.
     """
-    # TODO: Implement database query
-    return []
+    try:
+        jobs = await db.get_queued_jobs()
+        return jobs
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching queued jobs: {str(e)}")

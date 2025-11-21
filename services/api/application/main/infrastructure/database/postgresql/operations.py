@@ -347,3 +347,140 @@ class Postgresql(DataBaseOperations):
                 datetime.utcnow(), room_id, project_id
             )
             return result == "UPDATE 1"
+
+    # Layout Jobs operations
+    async def get_queued_jobs(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get all queued jobs."""
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id, room_id, status, progress, progress_message,
+                       request_data, response_data, error_message, error_details,
+                       created_at, started_at, completed_at, updated_at,
+                       worker_id, retry_count
+                FROM layout_jobs
+                WHERE status = 'queued'
+                ORDER BY created_at ASC
+                LIMIT $1
+                """,
+                limit
+            )
+            return [dict(row) for row in rows]
+
+    async def get_layout_job(self, job_id: int) -> Optional[Dict[str, Any]]:
+        """Get a specific layout job by ID."""
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT id, room_id, status, progress, progress_message,
+                       request_data, response_data, error_message, error_details,
+                       created_at, started_at, completed_at, updated_at,
+                       worker_id, retry_count
+                FROM layout_jobs
+                WHERE id = $1
+                """,
+                job_id
+            )
+            return dict(row) if row else None
+
+    async def update_layout_job(
+        self,
+        job_id: int,
+        status: Optional[str] = None,
+        progress: Optional[int] = None,
+        progress_message: Optional[str] = None,
+        response_data: Optional[Dict] = None,
+        error_message: Optional[str] = None,
+        error_details: Optional[Dict] = None,
+        started_at: Optional[datetime] = None,
+        completed_at: Optional[datetime] = None,
+        worker_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Update a layout job."""
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            # Build update query dynamically
+            updates = []
+            values = []
+            param_num = 1
+
+            if status is not None:
+                updates.append(f"status = ${param_num}")
+                values.append(status)
+                param_num += 1
+
+            if progress is not None:
+                updates.append(f"progress = ${param_num}")
+                values.append(progress)
+                param_num += 1
+
+            if progress_message is not None:
+                updates.append(f"progress_message = ${param_num}")
+                values.append(progress_message)
+                param_num += 1
+
+            if response_data is not None:
+                updates.append(f"response_data = ${param_num}")
+                values.append(json.dumps(response_data))
+                param_num += 1
+
+            if error_message is not None:
+                updates.append(f"error_message = ${param_num}")
+                values.append(error_message)
+                param_num += 1
+
+            if error_details is not None:
+                updates.append(f"error_details = ${param_num}")
+                values.append(json.dumps(error_details))
+                param_num += 1
+
+            if started_at is not None:
+                updates.append(f"started_at = ${param_num}")
+                values.append(started_at)
+                param_num += 1
+
+            if completed_at is not None:
+                updates.append(f"completed_at = ${param_num}")
+                values.append(completed_at)
+                param_num += 1
+
+            if worker_id is not None:
+                updates.append(f"worker_id = ${param_num}")
+                values.append(worker_id)
+                param_num += 1
+
+            if not updates:
+                # No updates, just return the existing job
+                return await self.get_layout_job(job_id)
+
+            updates.append(f"updated_at = ${param_num}")
+            values.append(datetime.utcnow())
+            param_num += 1
+
+            values.append(job_id)
+
+            row = await conn.fetchrow(
+                f"""
+                UPDATE layout_jobs
+                SET {', '.join(updates)}
+                WHERE id = ${param_num}
+                RETURNING id, room_id, status, progress, progress_message,
+                          request_data, response_data, error_message, error_details,
+                          created_at, started_at, completed_at, updated_at,
+                          worker_id, retry_count
+                """,
+                *values
+            )
+            if row:
+                result = dict(row)
+                # Parse JSONB fields
+                if result.get('response_data'):
+                    result['response_data'] = json.loads(result['response_data']) if isinstance(result['response_data'], str) else result['response_data']
+                if result.get('request_data'):
+                    result['request_data'] = json.loads(result['request_data']) if isinstance(result['request_data'], str) else result['request_data']
+                if result.get('error_details'):
+                    result['error_details'] = json.loads(result['error_details']) if isinstance(result['error_details'], str) else result['error_details']
+                return result
+            return None

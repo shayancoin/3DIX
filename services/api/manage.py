@@ -1,9 +1,15 @@
 import uvicorn
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from application.initializer import IncludeAPIRouter
 from application.main.config import settings
+from application.main.services.stub_worker import StubWorker
+
+
+# Global worker instance
+_worker: StubWorker = None
 
 
 def get_application():
@@ -23,9 +29,24 @@ def get_application():
 app = get_application()
 
 
+@app.on_event("startup")
+async def startup_event():
+    """Start the stub worker on application startup."""
+    global _worker
+    
+    _worker = StubWorker()
+    
+    # Start worker in background
+    asyncio.create_task(_worker.run(poll_interval=3))
+    print("Stub worker started in background")
+
+
 @app.on_event("shutdown")
 async def app_shutdown():
-    # on app shutdown do something probably close some connections or trigger some event
+    """Stop the worker on application shutdown."""
+    global _worker
+    if _worker:
+        _worker.stop()
     print("On App Shutdown i will be called.")
 
 

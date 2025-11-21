@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTeamForUser } from '@/lib/db/queries';
 import { getUser } from '@/lib/db/queries';
 import { createLayoutJob, getLayoutJobsForRoom } from '@/lib/db/queries';
-import { getRoom } from '@/lib/db/queries';
+import { getRoomById, getProjectWithRooms } from '@/lib/db/queries';
 import { z } from 'zod';
 
 const createJobSchema = z.object({
@@ -26,12 +26,17 @@ export async function POST(req: NextRequest) {
     const validatedData = createJobSchema.parse(body);
 
     // Verify room belongs to user's team
-    const room = await getRoom(validatedData.roomId, validatedData.roomId);
+    // We need to get the project first to verify team ownership
+    const room = await getRoomById(validatedData.roomId);
     if (!room) {
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
-    // TODO: Verify room.project.teamId matches user's team
+    // Verify project belongs to team
+    const project = await getProjectWithRooms(room.projectId, team.id);
+    if (!project) {
+      return NextResponse.json({ error: 'Room not found' }, { status: 404 });
+    }
 
     const job = await createLayoutJob({
       roomId: validatedData.roomId,
