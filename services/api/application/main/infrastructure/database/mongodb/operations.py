@@ -35,14 +35,14 @@ class Mongodb(DataBaseOperations, ABC):
 
     async def insert_single_db_record(self, record: Dict, collection_name: str = None):
         """
-        Inserts a single document into the configured MongoDB collection.
+        Insert a single document into the target MongoDB collection.
         
         Parameters:
             record (Dict): Document to insert.
-            collection_name (str, optional): Target collection name; if omitted, uses the configured default collection.
+            collection_name (str, optional): Target collection name. If omitted, the configured default collection is used.
         
         Returns:
-            insertion_result: The insertion result object; its `inserted_id` attribute contains the new document's id.
+            InsertOneResult: Result of the insert; `inserted_id` contains the new document's id.
         """
         coll_name = collection_name or self.db_config.get('collection', 'default_collection')
         collection = self.db[coll_name]

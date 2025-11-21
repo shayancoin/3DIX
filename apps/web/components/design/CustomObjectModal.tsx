@@ -11,6 +11,18 @@ interface CustomObjectModalProps {
     objectCategory: string;
 }
 
+/**
+ * Render a modal that lets the user submit an image URL to generate a 3D model for a furniture object.
+ *
+ * Renders nothing when `isOpen` is false. The modal includes a controlled input for an image URL, a submit action
+ * that invokes `onUpload`, a loading state while processing, and an error message area if upload fails.
+ *
+ * @param isOpen - Controls whether the modal is visible.
+ * @param onClose - Callback invoked to close the modal.
+ * @param onUpload - Callback invoked with the submitted image URL to generate the model; may reject with an `Error` on failure.
+ * @param objectCategory - Furniture category name shown in the modal description.
+ * @returns The modal element when visible, otherwise `null`.
+ */
 export function CustomObjectModal({ isOpen, onClose, onUpload, objectCategory }: CustomObjectModalProps) {
     const [imageUrl, setImageUrl] = useState('');
     const [loading, setLoading] = useState(false);
