@@ -11,7 +11,6 @@ contractions
 streamlit
 pyyaml
 boto3
-tensorflow
 cutelog
 python-multipart
 pydantic>=2.0

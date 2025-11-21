@@ -74,6 +74,7 @@ class GlobalConfig(BaseSettings):
         """Loads the dotenv file."""
 
         env_file: str = ".env"
+        extra = "ignore"
 
 
 class DevConfig(GlobalConfig):

@@ -25,10 +25,13 @@ class Mongodb(DataBaseOperations, ABC):
         super(Mongodb, self).__init__()
         self.db_config = ConfigReaderInstance.yaml.read_config_from_file(
             settings.DB + '_config.yaml')
-        self.connection_uri = 'mongodb://' + \
-            str(self.db_config['test']['host']) + ':' + str(self.db_config['test']['port'])
+        # Struct returned by config loader; access via attributes
+        host = getattr(self.db_config.test, "host", "localhost")
+        port = getattr(self.db_config.test, "port", 27017)
+        database_name = getattr(self.db_config, "database", "3dix_db")
+        self.connection_uri = f"mongodb://{host}:{port}"
         self.client = motor.motor_asyncio.AsyncIOMotorClient(self.connection_uri)
-        self.db = self.client[self.db_config.get('database', '3dix_db')]
+        self.db = self.client[database_name]
 
     async def insert_single_db_record(self, record: Dict, collection_name: str = None):
         """

@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Save, RotateCcw, Download } from 'lucide-react';
+import { CustomObjectModal } from '@/components/design/CustomObjectModal';
+import { ArrowLeft, Save, RotateCcw, Download, Wand2 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { VibePanel, VibeFormState } from '@/components/design/VibePanel';
@@ -70,8 +71,53 @@ export default function RoomPage() {
     const [quality, setQuality] = useState<'low' | 'medium' | 'high'>('high');
     const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
     const [objects3D, setObjects3D] = useState<SceneObject3D[]>([]);
+    const [isCustomObjectModalOpen, setIsCustomObjectModalOpen] = useState(false);
 
     const { job, loading: jobLoading, error: jobError } = useJobPolling(jobId, 3000);
+
+    const handleCustomObjectUpload = async (imageUrl: string) => {
+        if (!selectedObjectId || !room) return;
+
+        try {
+            const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
+            const response = await fetch(`${baseUrl}/rooms/${roomId}/objects/${selectedObjectId}/custom-mesh`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    image_url: imageUrl,
+                }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.detail || 'Failed to create custom mesh');
+            }
+
+            const data = await response.json();
+
+            // Update 3D objects with the new mesh URL
+            setObjects3D(prev => prev.map(obj =>
+                obj.id === selectedObjectId
+                    ? { ...obj, mesh_url: data.mesh_url }
+                    : obj
+            ));
+
+            // Update 2D objects to indicate custom status (optional, e.g. change color)
+            setObjects(prev => prev.map(obj =>
+                obj.id === selectedObjectId
+                    ? { ...obj, color: '#8b5cf6' } // Violet color to match the button
+                    : obj
+            ));
+
+            addToHistory(`Replaced object ${selectedObjectId} with custom mesh`);
+        } catch (err) {
+            console.error('Failed to upload custom object:', err);
+            setError(err instanceof Error ? err.message : 'Failed to upload custom object');
+            throw err; // Re-throw to be caught by the modal
+        }
+    };
 
     const fetchRoom = useCallback(async () => {
         try {
@@ -269,6 +315,21 @@ export default function RoomPage() {
                                 </div>
                             )}
                         </div>
+
+                        {/* Custom Object Button */}
+                        {selectedObjectId && viewMode === 'canvas' && (
+                            <div className="absolute bottom-4 left-4 z-10">
+                                <Button
+                                    size="sm"
+                                    onClick={() => setIsCustomObjectModalOpen(true)}
+                                    className="bg-violet-600 hover:bg-violet-700 text-white shadow-lg"
+                                >
+                                    <Wand2 className="h-4 w-4 mr-2" />
+                                    Replace with Custom Furniture
+                                </Button>
+                            </div>
+                        )}
+
                         {viewMode === 'canvas' ? (
                             <Canvas2D
                                 width={800}
@@ -330,6 +391,13 @@ export default function RoomPage() {
                     </div>
                 </aside>
             </div>
+
+            <CustomObjectModal
+                isOpen={isCustomObjectModalOpen}
+                onClose={() => setIsCustomObjectModalOpen(false)}
+                onUpload={handleCustomObjectUpload}
+                objectCategory={objects.find(o => o.id === selectedObjectId)?.type || 'Furniture'}
+            />
         </div>
     );
 }
