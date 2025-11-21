@@ -10,6 +10,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
+/**
+ * Render a page with a form to create a new room for the current project.
+ *
+ * The component manages local form state for name, type, width, length, and height,
+ * submits a POST request to the rooms API on submit, displays server or client
+ * errors, and navigates to the created room's page on success.
+ *
+ * @returns The JSX element for the New Room page.
+ */
 export default function NewRoomPage() {
     const router = useRouter();
     const params = useParams();
