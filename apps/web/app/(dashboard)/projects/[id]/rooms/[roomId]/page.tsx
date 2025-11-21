@@ -37,11 +37,11 @@ interface Room {
 }
 
 /**
- * Render the room editor page for a specific project room.
+ * Render the room editor UI for editing room details, scene objects, and generating layouts.
  *
- * Fetches room details from the current route parameters, manages editing state for
- * scene objects, generation vibe, and layout history, and provides UI for viewing
- * and modifying the room (canvas, vibe controls, history, and header actions).
+ * Fetches room data from route parameters, manages design state (objects, vibe, history, masks,
+ * view modes, and 3D objects), coordinates layout generation jobs, and displays the canvas,
+ * semantic map, and 3D views along with history and vibe controls.
  *
  * @returns A React element representing the room editor page
  */

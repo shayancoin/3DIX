@@ -35,6 +35,11 @@ app = get_application()
 @app.on_event("shutdown")
 async def app_shutdown():
     # on app shutdown do something probably close some connections or trigger some event
+    """
+    Execute application shutdown tasks such as closing resources or triggering cleanup events.
+    
+    This lifecycle handler is invoked when the application shuts down; implement cleanup actions here (for example, closing connections or notifying external services).
+    """
     print("On App Shutdown i will be called.")
 
 

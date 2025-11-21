@@ -13,6 +13,20 @@ interface SemanticMapViewerProps {
   selectedId?: string;
 }
 
+/**
+ * Render a canvas-based semantic map viewer showing an optional background image and interactive object overlays.
+ *
+ * Renders objects as rotated, labeled bounding boxes scaled to the provided room dimensions, highlights a selected object (selection determined by `selectedObjectId` if present, otherwise `selectedId`), and performs hit-testing on canvas clicks to report the clicked object's id via `onObjectClick`.
+ *
+ * @param semanticMapUrl - Optional base64 data URL or image URL to draw as the map background; if omitted or if loading fails, a room boundary is drawn instead.
+ * @param objects - Array of layout objects to render; each object's position, size, orientation, and category are used for placement, rotation, and labeling.
+ * @param roomWidth - Room width in the same units as object positions/sizes; defaults to 5.
+ * @param roomLength - Room length in the same units as object positions/sizes; defaults to 4.
+ * @param onObjectClick - Optional callback invoked with the clicked object's `id`, or `undefined` when a click does not hit any object.
+ * @param selectedObjectId - Optional id of the object to highlight; takes precedence over `selectedId` when both are provided.
+ * @param selectedId - Optional legacy/alternate id used for selection when `selectedObjectId` is not provided.
+ * @returns A React element that renders the semantic map canvas and optional loading overlay.
+ */
 export function SemanticMapViewer({
   semanticMapUrl,
   objects,

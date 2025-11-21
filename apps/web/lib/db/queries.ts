@@ -5,6 +5,13 @@ import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/session';
 import { assertValidTransition, JobStatus } from '@/lib/jobs/stateMachine';
 
+/**
+ * Retrieve the currently authenticated user based on the session cookie.
+ *
+ * Returns the user record associated with a valid, non-expired session; returns `null` if the session is missing, invalid, expired, or the user does not exist or is deleted.
+ *
+ * @returns The authenticated user's record, or `null` when no authenticated user is available.
+ */
 export async function getUser() {
   const sessionCookie = (await cookies()).get('session');
   if (!sessionCookie || !sessionCookie.value) {
@@ -213,6 +220,13 @@ export async function deleteProject(projectId: number, teamId: number) {
     ));
 }
 
+/**
+ * Retrieve a room by its ID together with its parent project.
+ *
+ * @param roomId - The ID of the room to fetch
+ * @param projectId - The ID of the project the room must belong to
+ * @returns The room object with an added `project` property when both the room and project exist, `null` otherwise
+ */
 export async function getRoom(roomId: number, projectId: number): Promise<RoomWithProject | null> {
   const room = await db
     .select()
@@ -244,6 +258,11 @@ export async function getRoom(roomId: number, projectId: number): Promise<RoomWi
   };
 }
 
+/**
+ * Fetches a room by ID and includes its associated project when the project is not deleted.
+ *
+ * @returns The room object with its `project` when both exist and the project is not deleted, or `null` otherwise.
+ */
 export async function getRoomWithProjectByRoomId(roomId: number): Promise<RoomWithProject | null> {
   const room = await db.query.rooms.findFirst({
     where: and(eq(rooms.id, roomId), isNull(rooms.deletedAt)),
@@ -262,6 +281,12 @@ export async function getRoomWithProjectByRoomId(roomId: number): Promise<RoomWi
   };
 }
 
+/**
+ * Retrieve non-deleted rooms for a project, ordered by most recently updated first.
+ *
+ * @param projectId - The project's numeric identifier
+ * @returns An array of room records belonging to the specified project, ordered by `updatedAt` descending
+ */
 export async function getRoomsForProject(projectId: number) {
   return await db
     .select()
@@ -338,6 +363,12 @@ export type UpdateLayoutJobInput = Partial<Pick<NewLayoutJob,
   completedAt?: Date | null;
 };
 
+/**
+ * Create a new layout job record for a room.
+ *
+ * @param data - Input properties for the new layout job: `roomId`, `requestData`, and optional `status`, `progress`, and `progressMessage`
+ * @returns The newly created layout job record
+ */
 export async function createLayoutJob(data: CreateLayoutJobInput) {
   const now = new Date();
   const [job] = await db
@@ -374,6 +405,11 @@ export async function getLayoutJobsForRoom(roomId: number) {
     .orderBy(desc(layoutJobs.createdAt));
 }
 
+/**
+ * Fetches the most recently created layout job for a given room.
+ *
+ * @returns The most recently created layout job for the room, or `null` if none exists.
+ */
 export async function getLatestLayoutJobForRoom(roomId: number) {
   const [job] = await db
     .select()
@@ -385,6 +421,14 @@ export async function getLatestLayoutJobForRoom(roomId: number) {
   return job || null;
 }
 
+/**
+ * Update a layout job with the given fields and ensure any status change is valid.
+ *
+ * @param jobId - The ID of the layout job to update
+ * @param updates - Partial fields to apply to the job; when `status` is provided, the transition is validated
+ * @returns The updated layout job record, or `null` if no job with `jobId` exists
+ * @throws If `updates.status` is provided and the status transition from the existing job is invalid
+ */
 export async function updateLayoutJob(jobId: number, updates: UpdateLayoutJobInput) {
   const existing = await getLayoutJob(jobId);
   if (!existing) {
@@ -408,6 +452,12 @@ export async function updateLayoutJob(jobId: number, updates: UpdateLayoutJobInp
   return job || null;
 }
 
+/**
+ * Fetches queued layout jobs ordered by creation time (oldest first).
+ *
+ * @param limit - Maximum number of jobs to return (defaults to 10)
+ * @returns An array of layout job records with status `QUEUED`, ordered by `createdAt`, limited to `limit`
+ */
 export async function getQueuedJobs(limit: number = 10) {
   return await db
     .select()
@@ -417,6 +467,11 @@ export async function getQueuedJobs(limit: number = 10) {
     .limit(limit);
 }
 
+/**
+ * Fetches layout jobs that are currently running.
+ *
+ * @returns An array of layout job records whose status is `RUNNING`.
+ */
 export async function getRunningJobs() {
   return await db
     .select()

@@ -34,6 +34,19 @@ const normalizeJob = (data: LayoutJobStatusResponse): JobStatus => {
   };
 };
 
+/**
+ * Continuously polls the layout job status endpoint for a given job ID and exposes the latest normalized status and polling controls.
+ *
+ * @param jobId - The layout job identifier to poll; if `null` polling is disabled.
+ * @param pollInterval - Time in milliseconds between poll requests (default: 2000).
+ * @returns An object containing:
+ *   - `job`: the latest normalized JobStatus or `null`
+ *   - `loading`: `true` while a fetch is in progress, `false` otherwise
+ *   - `error`: an error message string or `null`
+ *   - `refetch`: a function to fetch the latest job status immediately
+ *   - `startPolling`: a function to start polling (no-op if already polling or `jobId` is falsy)
+ *   - `stopPolling`: a function to stop polling
+ */
 export function useJobPolling(jobId: number | string | null, pollInterval: number = 2000) {
   const [job, setJob] = useState<JobStatus | null>(null);
   const [loading, setLoading] = useState(false);

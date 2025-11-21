@@ -12,15 +12,15 @@ class Mongodb(DataBaseOperations, ABC):
 
     def __init__(self):
         """
-        Initialize the Mongodb instance by loading configuration, constructing a MongoDB URI, creating an AsyncIOMotorClient, and selecting the target database.
+        Set up the MongoDB client and select the target database using the configured settings.
         
-        Loads configuration from a YAML file named "<DB>_config.yaml" (where <DB> is settings.DB), builds the connection URI using the configured host and port under the 'test' section, creates an AsyncIOMotorClient with that URI, and sets the `db` attribute to the configured database (defaults to "3dix_db" if not present).
+        Initializes instance attributes required for database operations based on the YAML configuration named "<DB>_config.yaml" (where <DB> is settings.DB).
         
         Attributes:
             db_config (dict): Parsed YAML configuration for the database.
-            connection_uri (str): MongoDB connection URI constructed from config.
+            connection_uri (str): MongoDB connection URI constructed from the configuration.
             client (AsyncIOMotorClient): Motor async client connected to the MongoDB server.
-            db (Database): Selected Motor database instance.
+            db (Database): Selected Motor database instance (defaults to "3dix_db" if not specified in config).
         """
         super(Mongodb, self).__init__()
         self.db_config = ConfigReaderInstance.yaml.read_config_from_file(
@@ -32,14 +32,14 @@ class Mongodb(DataBaseOperations, ABC):
 
     async def insert_single_db_record(self, record: Dict, collection_name: str = None):
         """
-        Insert a single document into the configured MongoDB collection.
+        Inserts a single document into the configured MongoDB collection.
         
         Parameters:
             record (Dict): Document to insert.
-            collection_name (str, optional): Target collection name; if omitted, the configured default collection is used.
+            collection_name (str, optional): Target collection name; if omitted, uses the configured default collection.
         
         Returns:
-            The insertion result object; its `inserted_id` attribute contains the new document's id.
+            insertion_result: The insertion result object; its `inserted_id` attribute contains the new document's id.
         """
         coll_name = collection_name or self.db_config.get('collection', 'default_collection')
         collection = self.db[coll_name]
@@ -91,7 +91,11 @@ class Mongodb(DataBaseOperations, ABC):
 
     async def delete_one(self, collection_name: str, query: Dict):
         """
-        Delete a single document matching the given query from the specified collection.
+        Delete a single document that matches the provided MongoDB filter from the given collection.
+        
+        Parameters:
+            collection_name (str): Name of the target collection.
+            query (Dict): MongoDB filter document used to match the document to delete.
         
         Returns:
             DeleteResult: Result of the delete operation; `deleted_count` is the number of documents deleted.
@@ -104,6 +108,14 @@ class Mongodb(DataBaseOperations, ABC):
         pass
 
     async def update_single_db_record(self, record: Dict):
+        """
+        Placeholder for the legacy single-record update API that intentionally performs no operation.
+        
+        Kept for backward compatibility; accepts the legacy `record` parameter but does not modify the database or return a value.
+        
+        Parameters:
+            record (Dict): Legacy record payload accepted for compatibility; this parameter is ignored.
+        """
         pass
 
     async def update_multiple_db_record(self, record: Dict):
@@ -127,4 +139,11 @@ class Mongodb(DataBaseOperations, ABC):
         pass
 
     async def insert_multiple_db_record(self, record: Dict):
+        """
+        Compatibility placeholder that preserves the legacy signature for inserting multiple records.
+        
+        This method is a no-op maintained for backward compatibility; the provided `record` argument is accepted for signature compatibility and is not used.
+        Parameters:
+            record (Dict): Data representing one or more documents; accepted for compatibility but ignored.
+        """
         pass

@@ -12,6 +12,13 @@ interface MaskControlsProps {
   onChange: (value: MaskControlsState) => void;
 }
 
+/**
+ * Render mask configuration controls for selecting a mask type and optionally specifying a mask image URL.
+ *
+ * @param value - Current mask control values (`maskType` and `maskUrl`).
+ * @param onChange - Callback invoked with an updated `MaskControlsState` when the mask type or mask URL changes.
+ * @returns A React element containing a labeled `Select` for mask type and an `Input` for the mask image URL.
+ */
 export function MaskControls({ value, onChange }: MaskControlsProps) {
   return (
     <div className="space-y-3">
