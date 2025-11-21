@@ -32,6 +32,7 @@ export default function StudioPage() {
   const [meshQuality, setMeshQuality] = useState<'low' | 'medium' | 'high'>('high');
   const [useMeshes, setUseMeshes] = useState(true);
   const [showObjectReplacement, setShowObjectReplacement] = useState(false);
+  const [showSemanticMapInCanvas, setShowSemanticMapInCanvas] = useState(false);
   
   // Sync selection between 2D and 3D views
   const handleObjectSelect = useCallback((objectId: string | undefined, source: '2d' | '3d' | 'semantic') => {
@@ -274,14 +275,34 @@ export default function StudioPage() {
 
           {/* Canvas, Semantic Map, or 3D View */}
           {viewMode === 'canvas' ? (
-            <LayoutCanvas
-              initialObjects={initialObjects}
-              roomWidth={roomWidth}
-              roomLength={roomLength}
-              onStateChange={handleCanvasStateChange}
-              selectedObjectId={selectedCanvasObjectId}
-              onObjectSelect={(id) => handleObjectSelect(id, '2d')}
-            />
+            <div className="flex flex-col h-full">
+              {/* Semantic map toggle for canvas view */}
+              {semanticMapUrl && (
+                <div className="p-2 border-b bg-white flex items-center gap-2">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showSemanticMapInCanvas}
+                      onChange={(e) => setShowSemanticMapInCanvas(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <span>Show Semantic Map Background</span>
+                  </label>
+                </div>
+              )}
+              <div className="flex-1 relative min-h-0">
+                <LayoutCanvas
+                  initialObjects={initialObjects}
+                  roomWidth={roomWidth}
+                  roomLength={roomLength}
+                  onStateChange={handleCanvasStateChange}
+                  selectedObjectId={selectedCanvasObjectId}
+                  onObjectSelect={(id) => handleObjectSelect(id, '2d')}
+                  semanticMapUrl={semanticMapUrl}
+                  showSemanticMap={showSemanticMapInCanvas}
+                />
+              </div>
+            </div>
           ) : viewMode === 'semantic' ? (
             <div className="flex-1 relative min-h-0 p-4">
               <SemanticMapViewer

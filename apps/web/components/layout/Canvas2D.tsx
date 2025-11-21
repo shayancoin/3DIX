@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { Stage, Layer, Rect, Group, Text, Transformer } from 'react-konva';
+import { Stage, Layer, Rect, Group, Text, Transformer, Image as KonvaImage } from 'react-konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { SceneObject2D, CanvasViewport, Point2D } from '@3dix/types';
 
@@ -16,6 +16,8 @@ interface Canvas2DProps {
   onObjectSelect?: (objectId: string | undefined) => void;
   roomWidth?: number; // Room dimensions in meters
   roomLength?: number;
+  semanticMapUrl?: string; // Optional semantic map as background
+  showSemanticMap?: boolean; // Toggle semantic map visibility
 }
 
 // Category color mapping
@@ -44,16 +46,31 @@ export function Canvas2D({
   onObjectSelect,
   roomWidth = 5,
   roomLength = 4,
+  semanticMapUrl,
+  showSemanticMap = false,
 }: Canvas2DProps) {
   const stageRef = useRef<any>(null);
   const transformerRef = useRef<any>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<Point2D | null>(null);
+  const [semanticMapImage, setSemanticMapImage] = useState<HTMLImageElement | null>(null);
 
   // Scale factor: pixels per meter
   const scale = Math.min(width / roomWidth, height / roomLength) * 0.8;
   const offsetX = (width - roomWidth * scale) / 2;
   const offsetY = (height - roomLength * scale) / 2;
+
+  // Load semantic map image if provided
+  useEffect(() => {
+    if (semanticMapUrl && showSemanticMap) {
+      const img = new Image();
+      img.onload = () => setSemanticMapImage(img);
+      img.onerror = () => setSemanticMapImage(null);
+      img.src = semanticMapUrl;
+    } else {
+      setSemanticMapImage(null);
+    }
+  }, [semanticMapUrl, showSemanticMap]);
 
   // Update transformer when selection changes
   useEffect(() => {
@@ -164,13 +181,25 @@ export function Canvas2D({
         style={{ cursor: isDragging ? 'grabbing' : 'default' }}
       >
         <Layer>
+          {/* Semantic map background (if provided and enabled) */}
+          {semanticMapImage && showSemanticMap && (
+            <KonvaImage
+              image={semanticMapImage}
+              x={offsetX}
+              y={offsetY}
+              width={roomWidth * scale}
+              height={roomLength * scale}
+              opacity={0.6}
+            />
+          )}
+          
           {/* Room boundary */}
           <Rect
             x={offsetX}
             y={offsetY}
             width={roomWidth * scale}
             height={roomLength * scale}
-            fill="#F5F5F5"
+            fill={showSemanticMap && semanticMapImage ? "transparent" : "#F5F5F5"}
             stroke="#CCCCCC"
             strokeWidth={2}
             dash={[5, 5]}

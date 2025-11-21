@@ -13,6 +13,8 @@ interface LayoutCanvasProps {
   onStateChange?: (state: LayoutCanvasState) => void;
   selectedObjectId?: string;
   onObjectSelect?: (objectId: string | undefined) => void;
+  semanticMapUrl?: string;
+  showSemanticMap?: boolean;
 }
 
 export function LayoutCanvas({
@@ -23,6 +25,8 @@ export function LayoutCanvas({
   onStateChange,
   selectedObjectId,
   onObjectSelect,
+  semanticMapUrl,
+  showSemanticMap = false,
 }: LayoutCanvasProps) {
   const [objects, setObjects] = useState<SceneObject2D[]>(initialObjects);
   const [viewport, setViewport] = useState<CanvasViewport>(initialViewport);
@@ -162,6 +166,8 @@ export function LayoutCanvas({
           onObjectSelect={handleObjectSelect}
           roomWidth={roomWidth}
           roomLength={roomLength}
+          semanticMapUrl={semanticMapUrl}
+          showSemanticMap={showSemanticMap}
         />
       </div>
       <div className="flex items-center gap-2 p-2 border-t bg-white">
