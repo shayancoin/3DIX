@@ -4,6 +4,7 @@ import { Box, Grid, OrbitControls, PerspectiveCamera, Text } from '@react-three/
 import { LayoutObject, Point3D } from '@3dix/types';
 import * as THREE from 'three';
 import { MeshLoader } from './MeshLoader';
+import { RoomSurfaces } from './Surface';
 
 interface LayoutScene3DProps {
   objects: LayoutObject[];
@@ -192,33 +193,15 @@ export function LayoutScene3D({
 
       {/* Room boundary visualization */}
       <group onClick={handleBackgroundClick}>
-        {/* Floor */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[roomWidth / 2, 0, roomLength / 2]} receiveShadow>
-          <planeGeometry args={[roomWidth, roomLength]} />
-          <meshStandardMaterial color="#F5F5F5" opacity={0.3} transparent />
-        </mesh>
-
-        {/* Walls (optional, can be enabled) */}
-        {/* Back wall */}
-        <mesh position={[roomWidth / 2, roomHeight / 2, 0]} receiveShadow>
-          <planeGeometry args={[roomWidth, roomHeight]} />
-          <meshStandardMaterial color="#E0E0E0" opacity={0.2} transparent side={THREE.DoubleSide} />
-        </mesh>
-        {/* Left wall */}
-        <mesh rotation={[0, Math.PI / 2, 0]} position={[0, roomHeight / 2, roomLength / 2]} receiveShadow>
-          <planeGeometry args={[roomLength, roomHeight]} />
-          <meshStandardMaterial color="#E0E0E0" opacity={0.2} transparent side={THREE.DoubleSide} />
-        </mesh>
-        {/* Right wall */}
-        <mesh rotation={[0, -Math.PI / 2, 0]} position={[roomWidth, roomHeight / 2, roomLength / 2]} receiveShadow>
-          <planeGeometry args={[roomLength, roomHeight]} />
-          <meshStandardMaterial color="#E0E0E0" opacity={0.2} transparent side={THREE.DoubleSide} />
-        </mesh>
-        {/* Front wall */}
-        <mesh rotation={[0, Math.PI, 0]} position={[roomWidth / 2, roomHeight / 2, roomLength]} receiveShadow>
-          <planeGeometry args={[roomWidth, roomHeight]} />
-          <meshStandardMaterial color="#E0E0E0" opacity={0.2} transparent side={THREE.DoubleSide} />
-        </mesh>
+        <RoomSurfaces
+          width={roomWidth}
+          length={roomLength}
+          height={roomHeight}
+          showFloor={true}
+          showWalls={true}
+          showCeiling={false}
+          receiveShadow={true}
+        />
       </group>
 
       {/* Layout Objects */}
