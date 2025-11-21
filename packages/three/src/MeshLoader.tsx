@@ -39,8 +39,39 @@ export function MeshLoader({ object, quality = 'high', onLoad, onError }: MeshLo
   const [meshUrl, setMeshUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [customMesh, setCustomMesh] = useState<Group | null>(null);
+
+  // Handle custom mesh data (base64 encoded)
+  useEffect(() => {
+    if (object.metadata?.customMeshData && object.metadata?.isCustom) {
+      setLoading(true);
+      try {
+        // Decode base64 mesh data
+        const meshData = atob(object.metadata.customMeshData);
+        // For PLY format, create a data URL and load it
+        // Note: This is a simplified approach. In production, use a proper PLY loader
+        const blob = new Blob([meshData], { type: 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        
+        // For now, we'll use a placeholder. In production, integrate PLYLoader
+        // TODO: Integrate THREE.PLYLoader or similar to load PLY files
+        console.log('Custom mesh data available, but PLY loading requires additional loader');
+        setCustomMesh(null);
+        setLoading(false);
+      } catch (err) {
+        console.error('Failed to load custom mesh:', err);
+        setError(err instanceof Error ? err : new Error('Failed to load custom mesh'));
+        setLoading(false);
+      }
+    }
+  }, [object.metadata?.customMeshData, object.metadata?.isCustom]);
 
   useEffect(() => {
+    // Skip if custom mesh
+    if (object.metadata?.isCustom) {
+      return;
+    }
+
     // Get asset URL from metadata
     const assetUrl = object.metadata?.assetUrl;
     if (!assetUrl) {
@@ -63,7 +94,16 @@ export function MeshLoader({ object, quality = 'high', onLoad, onError }: MeshLo
   }, [object, quality]);
 
   const [width, height, depth] = object.size;
-  const color = object.metadata?.color || '#6C757D';
+  const color = object.metadata?.isCustom ? '#4CAF50' : (object.metadata?.color || '#6C757D');
+
+  // Render custom mesh if available (placeholder for now)
+  if (object.metadata?.isCustom) {
+    if (customMesh) {
+      return <primitive object={customMesh.clone()} />;
+    }
+    // Fallback to colored box for custom objects
+    return <FallbackBox size={[width, height, depth]} color={color} />;
+  }
 
   if (error || !meshUrl) {
     return <FallbackBox size={[width, height, depth]} color={color} />;

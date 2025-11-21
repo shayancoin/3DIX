@@ -66,7 +66,7 @@ function LayoutObject3D({
   const color = object.metadata?.color || CATEGORY_COLORS[object.category] || CATEGORY_COLORS.default;
   const [x, y, z] = object.position;
   const [width, height, depth] = object.size;
-  const hasAsset = object.metadata?.assetUrl && useMesh;
+  const hasAsset = (object.metadata?.assetUrl || object.metadata?.isCustom) && useMesh;
 
   return (
     <group

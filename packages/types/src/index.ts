@@ -79,6 +79,11 @@ export interface LayoutObject {
   metadata?: {
     assetId?: string;
     modelUrl?: string;
+    assetUrl?: string;
+    textureUrl?: string;
+    assetQuality?: string;
+    customMeshData?: string; // Base64 encoded custom mesh
+    isCustom?: boolean; // Whether this is a custom reconstructed object
     [key: string]: any;
   };
 }

@@ -7,6 +7,7 @@ import { VibePanel } from '@/components/vibe/VibePanel';
 import { JobProgress } from '@/components/jobs/JobProgress';
 import { SemanticMapViewer } from '@/components/layout/SemanticMapViewer';
 import { CanvasShell, LayoutScene3D } from '@3dix/three';
+import { ObjectReplacementPanel } from '@/components/objects/ObjectReplacementPanel';
 import { useJobPolling } from '@/hooks/useJobPolling';
 import { LayoutCanvasState, VibeSpec, RoomType, SceneObject2D, LayoutObject } from '@3dix/types';
 
@@ -30,6 +31,7 @@ export default function StudioPage() {
   const [viewMode, setViewMode] = useState<'canvas' | 'semantic' | '3d'>('canvas');
   const [meshQuality, setMeshQuality] = useState<'low' | 'medium' | 'high'>('high');
   const [useMeshes, setUseMeshes] = useState(true);
+  const [showObjectReplacement, setShowObjectReplacement] = useState(false);
   
   // Sync selection between 2D and 3D views
   const handleObjectSelect = useCallback((objectId: string | undefined, source: '2d' | '3d' | 'semantic') => {
@@ -165,6 +167,42 @@ export default function StudioPage() {
     // TODO: Auto-save canvas state to room
   };
 
+  const handleObjectReplaced = useCallback((objectId: string, meshData: string) => {
+    // Update the layout object with new mesh data
+    setLayoutObjects((prev) =>
+      prev.map((obj) =>
+        obj.id === objectId
+          ? {
+              ...obj,
+              metadata: {
+                ...obj.metadata,
+                customMeshData: meshData,
+                isCustom: true,
+              },
+            }
+          : obj
+      )
+    );
+
+    // Also update canvas objects
+    setInitialObjects((prev) =>
+      prev.map((obj) =>
+        obj.id === objectId
+          ? {
+              ...obj,
+              metadata: {
+                ...obj.metadata,
+                customMeshData: meshData,
+                isCustom: true,
+              },
+            }
+          : obj
+      )
+    );
+
+    setShowObjectReplacement(false);
+  }, []);
+
   return (
     <div className="flex flex-col h-screen w-full">
       <header className="p-4 border-b bg-white">
@@ -178,6 +216,14 @@ export default function StudioPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {selectedLayoutObjectId && (
+              <button
+                onClick={() => setShowObjectReplacement(!showObjectReplacement)}
+                className="px-3 py-1 text-sm border rounded hover:bg-gray-100"
+              >
+                {showObjectReplacement ? 'Hide' : 'Replace Object'}
+              </button>
+            )}
             <button className="px-3 py-1 text-sm border rounded">Save</button>
             <button className="px-3 py-1 text-sm border rounded">Export</button>
           </div>
@@ -293,15 +339,29 @@ export default function StudioPage() {
             </div>
           )}
         </div>
-        <div className="w-80 flex-shrink-0">
-          <VibePanel
-            initialVibeSpec={vibeSpec || undefined}
-            roomType={roomType}
-            roomId={roomIdNum || undefined}
-            onVibeSpecChange={handleVibeSpecChange}
-            onSubmit={handleVibeSubmit}
-            onJobCreated={handleJobCreated}
-          />
+        <div className="w-80 flex-shrink-0 flex flex-col">
+          {/* Object Replacement Panel */}
+          {showObjectReplacement && selectedLayoutObjectId && (
+            <div className="border-b">
+              <ObjectReplacementPanel
+                selectedObjectId={selectedLayoutObjectId}
+                onObjectReplaced={handleObjectReplaced}
+                onClose={() => setShowObjectReplacement(false)}
+              />
+            </div>
+          )}
+
+          {/* Vibe Panel */}
+          <div className="flex-1 overflow-hidden">
+            <VibePanel
+              initialVibeSpec={vibeSpec || undefined}
+              roomType={roomType}
+              roomId={roomIdNum || undefined}
+              onVibeSpecChange={handleVibeSpecChange}
+              onSubmit={handleVibeSubmit}
+              onJobCreated={handleJobCreated}
+            />
+          </div>
         </div>
       </main>
     </div>
