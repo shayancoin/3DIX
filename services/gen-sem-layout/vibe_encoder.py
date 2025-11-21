@@ -36,11 +36,13 @@ class VibeEncoder:
         device: str = "cuda" if torch.cuda.is_available() else "cpu"
     ):
         """
-        Initialize vibe encoder.
-
-        Args:
-            text_model_name: Name of the text encoder model
-            device: Device to run inference on
+        Create a VibeEncoder configured to use a specified CLIP text model on a target device.
+        
+        Attempts to initialize CLIP text and image components; if initialization fails or CLIP is unavailable, the instance remains in a deterministic "stub" mode that produces hash-based embeddings.
+        
+        Parameters:
+            text_model_name (str): Identifier of the CLIP text model to load (e.g., "openai/clip-vit-base-patch32").
+            device (str): Device to run inference on (e.g., "cuda" or "cpu"). If not provided, defaults to CUDA when available.
         """
         self.device = device
         self.text_model = None
@@ -57,7 +59,15 @@ class VibeEncoder:
                 print("Falling back to stub mode")
 
     def _initialize_models(self, model_name: str):
-        """Initialize CLIP models for text and image encoding."""
+        """
+        Prepare CLIP components for text and image encoding using the given pretrained model identifier.
+        
+        Parameters:
+            model_name (str): Identifier or path of the pretrained CLIP model to load. This will be used to locate tokenizer, text model, processor, and image model.
+        
+        Notes:
+            This method sets self.initialized to True when complete. Actual model loading is currently not implemented (stubbed) and should be provided in a future update.
+        """
         print(f"Initializing vibe encoder with model: {model_name}")
 
         # TODO: Implement actual model loading
@@ -70,13 +80,13 @@ class VibeEncoder:
 
     def encode_text(self, text: str) -> np.ndarray:
         """
-        Encode text prompt to latent representation.
-
-        Args:
-            text: Text prompt
-
+        Encode a text prompt into a latent embedding vector.
+        
+        Parameters:
+            text (str): The input text prompt to encode. 
+        
         Returns:
-            Latent vector
+            numpy.ndarray: Latent embedding vector for the input text. If the encoder is not initialized or CLIP is unavailable, returns a deterministic 128-dimensional stub embedding; otherwise returns the model-produced embedding.
         """
         if not self.initialized or not VIBE_ENCODER_AVAILABLE:
             # Return stub embedding
@@ -93,13 +103,13 @@ class VibeEncoder:
 
     def encode_image(self, image_url: str) -> Optional[np.ndarray]:
         """
-        Encode reference image to latent representation.
-
-        Args:
-            image_url: URL or base64 data URL of the image
-
+        Encode a reference image into a latent embedding.
+        
+        Parameters:
+            image_url (str): Image source; accepts a base64 data URL (data:image/...) or a remote URL. When a remote URL is provided, network loading is not implemented and the function may return None.
+        
         Returns:
-            Latent vector or None if encoding fails
+            np.ndarray or None: A 1-D latent vector for the image, or `None` if encoding fails or the image cannot be loaded.
         """
         if not self.initialized or not VIBE_ENCODER_AVAILABLE:
             return self._get_stub_embedding("image", "image")
@@ -132,21 +142,37 @@ class VibeEncoder:
         available_categories: List[str]
     ) -> Dict[str, float]:
         """
-        Compute category bias weights based on vibe specification.
-        Delegates to category_bias module.
+        Compute bias weights for each category based on the provided vibe specification.
+        
+        Parameters:
+            vibe_spec (dict): Vibe specification containing prompt text, tags, sliders, or other cues used to derive category preferences.
+            available_categories (list[str]): List of category identifiers to score against the vibe specification.
+        
+        Returns:
+            dict[str, float]: A mapping from each category in `available_categories` to a numeric bias weight (larger values indicate stronger bias toward that category).
         """
         from category_bias import compute_category_bias
         return compute_category_bias(vibe_spec, available_categories)
 
     def encode_vibe_spec(self, vibe_spec: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Encode complete vibe specification to latent representation.
-
-        Args:
-            vibe_spec: Complete vibe specification
-
+        Encode a full vibe specification into text, image, and combined latent representations plus category bias and metadata.
+        
+        Parameters:
+            vibe_spec (Dict[str, Any]): Vibe specification expected to contain a "prompt" mapping with keys:
+                - "text": textual prompt string (optional)
+                - "referenceImageUrl": image data URL or URL string (optional)
+        
         Returns:
-            Dictionary with encoded latents and metadata
+            Dict[str, Any]: Mapping with the following keys:
+                - "text_latent": list of floats representing the text embedding.
+                - "image_latent": list of floats for the image embedding or `None` if no image was encoded.
+                - "combined_latent": list of floats representing the concatenated text and image latents (or text latent alone).
+                - "category_bias": category bias structure as produced by `compute_category_bias`.
+                - "metadata": dict with:
+                    - "has_text": `true` if the prompt contained non-empty text.
+                    - "has_image": `true` if an image was successfully encoded.
+                    - "model": string identifying the encoder mode ("clip-stub" when uninitialized, otherwise "clip").
         """
         prompt = vibe_spec.get("prompt", {})
         text = prompt.get("text", "")
