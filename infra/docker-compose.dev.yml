@@ -13,5 +13,33 @@ services:
       - ../services/api/.env.dev
     environment:
       - ENV_STATE=dev
+      - ML_SERVICE_URL=http://gen-sem-layout:8001
     command: uvicorn manage:app --host 0.0.0.0 --port 8000 --reload
+    working_dir: /app
+    depends_on:
+      - gen-sem-layout
+
+  gen-sem-layout:
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.ml
+    ports:
+      - "8001:8001"
+    volumes:
+      - ../services/gen-sem-layout:/app
+      - ../research/sem-layout-diff:/app/research/sem-layout-diff
+    environment:
+      - PORT=8001
+      - ML_SERVICE_URL=http://localhost:8001
+      # Model paths (configure as needed)
+      - SLDN_CHECKPOINT_PATH=${SLDN_CHECKPOINT_PATH:-/app/models/sldn.pth}
+      - APM_CHECKPOINT_PATH=${APM_CHECKPOINT_PATH:-/app/models/apm.pth}
+      - SEMLAYOUTDIFF_CONFIG_PATH=${SEMLAYOUTDIFF_CONFIG_PATH:-/app/research/sem-layout-diff/configs/default.yaml}
+      # Asset paths
+      - THREED_FUTURE_DATASET_PATH=${THREED_FUTURE_DATASET_PATH:-/app/data/3d-future}
+      - THREED_FUTURE_MODEL_INFO_PATH=${THREED_FUTURE_MODEL_INFO_PATH:-/app/data/3d-future/model_info.json}
+      - ASSET_BASE_URL=http://localhost:8001/assets
+      # Vibe encoder
+      - VIBE_ENCODER_MODEL=${VIBE_ENCODER_MODEL:-openai/clip-vit-base-patch32}
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
     working_dir: /app

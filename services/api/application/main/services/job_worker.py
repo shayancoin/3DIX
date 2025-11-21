@@ -10,6 +10,7 @@ import os
 from typing import Optional
 from datetime import datetime
 import httpx
+from application.main.services.layout_service import LayoutService
 
 
 class JobWorker:
@@ -55,24 +56,22 @@ class JobWorker:
                 progress_message="Calling ML service..."
             )
 
-            async with httpx.AsyncClient(timeout=300.0) as client:
-                try:
-                    response = await client.post(
-                        f"{self.ml_service_url}/generate",
-                        json=request_data,
-                    )
-                    response.raise_for_status()
-                    ml_response = response.json()
-                except httpx.HTTPError as e:
-                    error_msg = f"ML service error: {str(e)}"
-                    await self.update_job_status(
-                        job_id,
-                        "failed",
-                        progress=0,
-                        error_message=error_msg,
-                        completed_at=datetime.utcnow().isoformat(),
-                    )
-                    raise
+            # Use LayoutService to call ML service
+            from application.main.services.layout_service import LayoutService
+            layout_service = LayoutService(ml_service_url=self.ml_service_url)
+            
+            try:
+                ml_response = await layout_service.generate_layout(request_data)
+            except Exception as e:
+                error_msg = f"ML service error: {str(e)}"
+                await self.update_job_status(
+                    job_id,
+                    "failed",
+                    progress=0,
+                    error_message=error_msg,
+                    completed_at=datetime.utcnow().isoformat(),
+                )
+                raise
 
             # Update progress
             await self.update_job_status(
