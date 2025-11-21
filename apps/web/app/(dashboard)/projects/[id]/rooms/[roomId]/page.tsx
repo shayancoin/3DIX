@@ -27,6 +27,15 @@ interface Room {
     updated_at: string;
 }
 
+/**
+ * Render the room editor page for a specific project room.
+ *
+ * Fetches room details from the current route parameters, manages editing state for
+ * scene objects, generation vibe, and layout history, and provides UI for viewing
+ * and modifying the room (canvas, vibe controls, history, and header actions).
+ *
+ * @returns A React element representing the room editor page
+ */
 export default function RoomPage() {
     const router = useRouter();
     const params = useParams();

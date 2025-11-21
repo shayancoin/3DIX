@@ -16,6 +16,16 @@ interface Canvas2DProps {
 const GRID_SIZE = 50; // pixels per meter
 const STAGE_PADDING = 50;
 
+/**
+ * Render a pannable, zoomable 2D room canvas with a grid, room boundary, and draggable scene objects.
+ *
+ * @param width - Stage width in pixels
+ * @param height - Stage height in pixels
+ * @param roomDimensions - Room size in meters (`width` and `length`) used to compute pixel dimensions
+ * @param objects - Array of scene objects to render and allow dragging for position updates
+ * @param onObjectUpdate - Callback invoked with an object's `id` and partial updated properties (positions are reported in meters) when an object is moved
+ * @returns The React element for the interactive 2D canvas
+ */
 export function Canvas2D({ width, height, roomDimensions, objects, onObjectUpdate }: Canvas2DProps) {
     const stageRef = useRef<any>(null);
     const [scale, setScale] = useState(1);

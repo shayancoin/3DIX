@@ -16,6 +16,18 @@ interface VibePanelProps {
     isGenerating: boolean;
 }
 
+/**
+ * Render a control panel for editing a VibeSpec and triggering layout generation.
+ *
+ * Provides controls to edit the vibe prompt, add/remove keyword tags, adjust style sliders
+ * (minimalism, vintage, colorful), and trigger generation.
+ *
+ * @param vibe - Current VibeSpec state shown and edited by the panel
+ * @param onVibeUpdate - Callback invoked with an updated VibeSpec when the user changes prompt, keywords, or sliders
+ * @param onGenerate - Callback invoked when the user clicks the generate button
+ * @param isGenerating - When true, disables the generate button and shows progress text
+ * @returns The React element for the VibePanel UI
+ */
 export function VibePanel({ vibe, onVibeUpdate, onGenerate, isGenerating }: VibePanelProps) {
     const [keywordInput, setKeywordInput] = useState('');
 

@@ -22,6 +22,11 @@ interface Project {
   // rooms are fetched separately in our API design, but we can fetch them here
 }
 
+/**
+ * Render the project detail page, showing project metadata, its rooms, and actions to create or delete rooms.
+ *
+ * @returns The page JSX containing the project header (name and description), action buttons (delete project, new room), and either a rooms grid or an empty-state card.
+ */
 export default function ProjectDetailPage() {
   const router = useRouter();
   const params = useParams();

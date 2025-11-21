@@ -5,6 +5,12 @@ import * as LabelPrimitive from "@radix-ui/react-label"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * Renders a styled label element that forwards all supported LabelPrimitive.Root props.
+ *
+ * @param className - Additional CSS classes appended to the component's base styles
+ * @returns The rendered LabelPrimitive.Root element with accessibility and disabled-state styles applied
+ */
 function Label({
   className,
   ...props

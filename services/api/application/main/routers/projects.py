@@ -6,6 +6,15 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 @router.post("/", response_model=Project, status_code=status.HTTP_201_CREATED)
 async def create_project(request: Request, project_in: ProjectCreate):
+    """
+    Create a new project and persist it to the projects collection.
+    
+    Parameters:
+        project_in (ProjectCreate): Input data used to construct the new project.
+    
+    Returns:
+        Project: The created Project instance, including its persisted identifier.
+    """
     project = Project(**project_in.dict())
     # Use insert_single_db_record. Note: It expects a dict and returns an InsertOneResult
     # We need to handle the _id. The Project model generates one, but mongo might want to generate it or we force it.
@@ -50,11 +59,29 @@ async def list_projects(request: Request):
     # I need to significantly improve DBOperations to support generic CRUD.
 
     # For now, I'll assume I will fix DBOperations to have `find` method.
+    """
+    Retrieve all projects from the database's "projects" collection.
+    
+    Returns:
+        projects (List[Project]): List of Project instances representing each stored project.
+    """
     projects = await request.app.state.db_operations.find("projects", {})
     return [Project(**p) for p in projects]
 
 @router.get("/{project_id}", response_model=Project)
 async def get_project(request: Request, project_id: str):
+    """
+    Retrieve a project by its ID.
+    
+    Parameters:
+        project_id (str): The project's unique identifier used to look up the record in the "projects" collection.
+    
+    Returns:
+        Project: The project model constructed from the stored project data.
+    
+    Raises:
+        HTTPException: 404 if no project with the given `project_id` exists.
+    """
     project_data = await request.app.state.db_operations.find_one("projects", {"_id": project_id})
     if not project_data:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -62,6 +89,22 @@ async def get_project(request: Request, project_id: str):
 
 @router.put("/{project_id}", response_model=Project)
 async def update_project(request: Request, project_id: str, project_in: ProjectUpdate):
+    """
+    Update fields of an existing project and return the updated project.
+    
+    Only the fields provided in `project_in` are applied; when any change is made the project's `updated_at`
+    timestamp is set to the current UTC time.
+    
+    Parameters:
+    	project_id (str): Identifier of the project to update.
+    	project_in (ProjectUpdate): Partial project data containing fields to change.
+    
+    Returns:
+    	Project: The project representation after applying the updates.
+    
+    Raises:
+    	HTTPException: 404 if no project with `project_id` exists.
+    """
     project_data = await request.app.state.db_operations.find_one("projects", {"_id": project_id})
     if not project_data:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -76,6 +119,12 @@ async def update_project(request: Request, project_id: str, project_in: ProjectU
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(request: Request, project_id: str):
+    """
+    Delete a project by its identifier.
+    
+    Raises:
+        HTTPException: 404 if no project with the given `project_id` exists.
+    """
     result = await request.app.state.db_operations.delete_one("projects", {"_id": project_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Project not found")

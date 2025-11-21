@@ -4,6 +4,12 @@ from pydantic import BaseModel, Field
 from uuid import uuid4
 
 def generate_id():
+    """
+    Generate a new unique identifier string.
+    
+    Returns:
+        id (str): A UUID4-based unique identifier.
+    """
     return str(uuid4())
 
 class RoomDimensions(BaseModel):
