@@ -12,7 +12,12 @@ import { RoomType as SchemaRoomType } from '@/lib/db/schema';
 import { RoomType, getRoomTypeConfig } from '@3dix/types';
 import { RoomWizard } from '@/components/wizards/RoomWizard';
 
-// Map schema RoomType to types RoomType
+/**
+ * Convert a schema-defined RoomType enum value to the UI `RoomType` string.
+ *
+ * @param schemaType - The schema `SchemaRoomType` value to convert
+ * @returns The corresponding `RoomType` string; returns `'other'` if the input has no match
+ */
 function mapSchemaRoomTypeToType(schemaType: SchemaRoomType): RoomType {
   const mapping: Record<string, RoomType> = {
     KITCHEN: 'kitchen',
@@ -27,6 +32,12 @@ function mapSchemaRoomTypeToType(schemaType: SchemaRoomType): RoomType {
   return mapping[schemaType] || 'other';
 }
 
+/**
+ * Map a UI `RoomType` value to the corresponding `SchemaRoomType` enum value.
+ *
+ * @param type - The UI room type to convert (e.g., 'kitchen', 'bedroom', 'living_room').
+ * @returns The matching `SchemaRoomType` enum value.
+ */
 function mapTypeRoomTypeToSchema(type: RoomType): SchemaRoomType {
   const mapping: Record<RoomType, SchemaRoomType> = {
     kitchen: SchemaRoomType.KITCHEN,
@@ -41,6 +52,13 @@ function mapTypeRoomTypeToSchema(type: RoomType): SchemaRoomType {
   return mapping[type];
 }
 
+/**
+ * Render the "Create New Room" page with a form and an optional wizard workflow.
+ *
+ * The component manages local form state, toggles between a traditional form and a wizard, submits room creation requests to the project rooms API, and navigates to the created room on success. It also exposes client-side loading and error states.
+ *
+ * @returns The React element for the New Room page UI containing the form, wizard entry, and related controls.
+ */
 export default function NewRoomPage() {
   const router = useRouter();
   const params = useParams();
