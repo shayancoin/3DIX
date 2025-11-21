@@ -12,6 +12,7 @@ import time
 import os
 from semlayoutdiff_integration import SemLayoutDiffIntegration
 from asset_retrieval import AssetRetrieval
+from vibe_encoder import VibeEncoder
 
 app = FastAPI(
     title="3DIX Layout Generation Service",
@@ -44,6 +45,11 @@ asset_retrieval = AssetRetrieval(
     dataset_path=os.getenv("THREED_FUTURE_DATASET_PATH"),
     model_info_path=os.getenv("THREED_FUTURE_MODEL_INFO_PATH"),
     base_url=os.getenv("ASSET_BASE_URL", "http://localhost:8001/assets")
+)
+
+# Initialize vibe encoder
+vibe_encoder = VibeEncoder(
+    text_model_name=os.getenv("VIBE_ENCODER_MODEL", "openai/clip-vit-base-patch32")
 )
 
 
@@ -186,6 +192,10 @@ async def generate_layout(request: LayoutRequest):
     width = room_dims.width if room_dims else 5.0
     length = room_dims.length if room_dims else 4.0
     
+    # Encode vibe specification
+    vibe_encoded = vibe_encoder.encode_vibe_spec(request.vibeSpec.dict())
+    category_bias = vibe_encoded.get("category_bias", {})
+    
     # Extract floor plan mask if provided
     floor_plan_mask = None
     if request.constraints and request.constraints.maskImage:
@@ -203,17 +213,21 @@ async def generate_layout(request: LayoutRequest):
         except Exception as e:
             print(f"Warning: Failed to decode mask image: {e}")
     
-    # Generate semantic layout using SemLayoutDiff
+    # Generate semantic layout using SemLayoutDiff with vibe encoding
+    text_embedding = np.array(vibe_encoded.get("combined_latent", [])) if vibe_encoded.get("combined_latent") else None
     semantic_map, layout_metadata = semlayoutdiff.generate_semantic_layout(
         room_type=room_type,
         floor_plan_mask=floor_plan_mask,
-        num_samples=1
+        num_samples=1,
+        text_embedding=text_embedding,
+        category_bias=category_bias
     )
     
-    # Predict 3D attributes from semantic map
+    # Predict 3D attributes from semantic map with category bias
     attribute_predictions = semlayoutdiff.predict_attributes(
         semantic_map=semantic_map,
-        room_type=room_type
+        room_type=room_type,
+        category_bias=category_bias
     )
     
     # Retrieve assets for layout objects
@@ -267,6 +281,8 @@ async def generate_layout(request: LayoutRequest):
             "modelVersion": "semlayoutdiff-v1.0" if semlayoutdiff.initialized else "stub-v1.0",
             "roomType": room_type,
             "layoutMetadata": layout_metadata,
+            "vibeEncoding": vibe_encoded.get("metadata", {}),
+            "categoryBias": category_bias,
         }
     )
 

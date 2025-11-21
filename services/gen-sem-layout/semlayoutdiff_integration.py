@@ -89,7 +89,9 @@ class SemLayoutDiffIntegration:
         self,
         room_type: str,
         floor_plan_mask: Optional[np.ndarray] = None,
-        num_samples: int = 1
+        num_samples: int = 1,
+        text_embedding: Optional[np.ndarray] = None,
+        category_bias: Optional[Dict[str, float]] = None
     ) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Generate semantic layout using SLDN.
@@ -121,7 +123,8 @@ class SemLayoutDiffIntegration:
     def predict_attributes(
         self,
         semantic_map: np.ndarray,
-        room_type: str
+        room_type: str,
+        category_bias: Optional[Dict[str, float]] = None
     ) -> List[Dict[str, Any]]:
         """
         Predict 3D object attributes from semantic map using APM.
@@ -165,7 +168,8 @@ class SemLayoutDiffIntegration:
     def _generate_stub_attributes(
         self,
         room_type: str,
-        semantic_map: np.ndarray
+        semantic_map: np.ndarray,
+        category_bias: Optional[Dict[str, float]] = None
     ) -> List[Dict[str, Any]]:
         """Generate stub attributes from semantic map."""
         # Extract basic information from semantic map
@@ -214,10 +218,26 @@ class SemLayoutDiffIntegration:
                 "orientation": 0.0,
             })
         
-        return predictions if predictions else self._get_default_objects(room_type)
+        # Apply category bias if provided
+        if category_bias and predictions:
+            # Sort predictions by bias weight (higher bias = more likely)
+            predictions_with_bias = []
+            for pred in predictions:
+                category = pred["category"]
+                bias = category_bias.get(category, 0.5)
+                pred["bias_weight"] = bias
+                predictions_with_bias.append((bias, pred))
+            
+            # Sort by bias (descending) and take top objects
+            predictions_with_bias.sort(key=lambda x: x[0], reverse=True)
+            # Take top 70% of objects based on bias, or all if bias is uniform
+            num_to_keep = max(1, int(len(predictions_with_bias) * 0.7))
+            predictions = [pred for _, pred in predictions_with_bias[:num_to_keep]]
+        
+        return predictions if predictions else self._get_default_objects(room_type, category_bias)
 
-    def _get_default_objects(self, room_type: str) -> List[Dict[str, Any]]:
-        """Get default objects for room type."""
+    def _get_default_objects(self, room_type: str, category_bias: Optional[Dict[str, float]] = None) -> List[Dict[str, Any]]:
+        """Get default objects for room type, optionally filtered by category bias."""
         defaults = {
             "kitchen": [
                 {"category": "refrigerator", "position": [0.5, 0.0, 0.3], "size": [0.6, 1.8, 0.6], "orientation": 0.0},
@@ -229,7 +249,22 @@ class SemLayoutDiffIntegration:
                 {"category": "dresser", "position": [0.5, 0.0, 0.5], "size": [1.2, 1.0, 0.5], "orientation": 1.57},
             ],
         }
-        return defaults.get(room_type, defaults["kitchen"])
+        
+        objects = defaults.get(room_type, defaults["kitchen"])
+        
+        # Filter by category bias if provided
+        if category_bias:
+            filtered_objects = []
+            for obj in objects:
+                category = obj["category"]
+                bias = category_bias.get(category, 0.5)
+                # Include objects with bias > 0.3
+                if bias > 0.3:
+                    filtered_objects.append(obj)
+            if filtered_objects:
+                return filtered_objects
+        
+        return objects
 
     def semantic_map_to_base64(self, semantic_map: np.ndarray) -> str:
         """Convert semantic map to base64 encoded image."""
