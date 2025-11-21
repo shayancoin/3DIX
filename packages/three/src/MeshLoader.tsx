@@ -1,6 +1,6 @@
 import React, { Suspense, useState, useEffect } from 'react';
 import { useGLTF } from '@react-three/drei';
-import { Mesh, Group, BoxGeometry, MeshStandardMaterial } from 'three';
+import * as THREE from 'three';
 import { LayoutObject } from '@3dix/types';
 
 interface MeshLoaderProps {
@@ -10,8 +10,19 @@ interface MeshLoaderProps {
   onError?: (error: Error) => void;
 }
 
-function ModelMesh({ url, onLoad, onError }: { url: string; onLoad?: () => void; onError?: (error: Error) => void }) {
+function ModelMesh({ 
+  url, 
+  targetSize, 
+  onLoad, 
+  onError 
+}: { 
+  url: string; 
+  targetSize: [number, number, number];
+  onLoad?: () => void; 
+  onError?: (error: Error) => void;
+}) {
   const gltf = useGLTF(url);
+  const meshRef = React.useRef<THREE.Group>(null);
   
   useEffect(() => {
     if (gltf?.scene && onLoad) {
@@ -19,11 +30,44 @@ function ModelMesh({ url, onLoad, onError }: { url: string; onLoad?: () => void;
     }
   }, [gltf, onLoad]);
 
+  // Scale and center the mesh to match target size
+  useEffect(() => {
+    if (gltf?.scene && meshRef.current) {
+      const scene = gltf.scene.clone();
+      
+      // Calculate bounding box
+      const box = new THREE.Box3().setFromObject(scene);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      
+      // Calculate scale factors for each dimension
+      const scaleX = targetSize[0] / size.x;
+      const scaleY = targetSize[1] / size.y;
+      const scaleZ = targetSize[2] / size.z;
+      
+      // Use uniform scaling to maintain aspect ratio, or non-uniform if needed
+      // For furniture, we typically want to match the target size closely
+      const uniformScale = Math.min(scaleX, scaleY, scaleZ);
+      
+      // Apply scaling
+      scene.scale.set(uniformScale, uniformScale, uniformScale);
+      
+      // Center the mesh
+      scene.position.sub(center.multiplyScalar(uniformScale));
+      
+      // Update the ref
+      if (meshRef.current) {
+        meshRef.current.clear();
+        meshRef.current.add(scene);
+      }
+    }
+  }, [gltf, targetSize]);
+
   if (!gltf?.scene) {
     return null;
   }
 
-  return <primitive object={gltf.scene} />;
+  return <group ref={meshRef} />;
 }
 
 function FallbackBox({ size, color }: { size: [number, number, number]; color: string }) {
@@ -113,6 +157,7 @@ export function MeshLoader({ object, quality = 'high', onLoad, onError }: MeshLo
     <Suspense fallback={<FallbackBox size={[width, height, depth]} color={color} />}>
       <ModelMesh
         url={meshUrl}
+        targetSize={[width, height, depth]}
         onLoad={() => {
           setLoading(false);
           onLoad?.();

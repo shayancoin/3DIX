@@ -263,11 +263,35 @@ async def generate_layout(request: LayoutRequest):
         
         # Convert predictions to LayoutObject format with asset information
         objects = []
-        asset_map = {asset["objectId"]: asset for asset in assets if "objectId" in asset}
+        # Create asset map by matching object IDs
+        asset_map = {}
+        for asset in assets:
+            obj_id = asset.get("objectId")
+            if obj_id:
+                asset_map[obj_id] = asset
         
         for i, pred in enumerate(attribute_predictions):
-            obj_id = f"obj-{i+1}"
-            asset = asset_map.get(obj_id)
+            # Try multiple ID formats for matching
+            obj_id = pred.get("id", f"obj-{i+1}")
+            obj_id_alt = f"obj-{i+1}"
+            
+            # Find matching asset (try both ID formats)
+            asset = asset_map.get(obj_id) or asset_map.get(obj_id_alt)
+            
+            # If no match by ID, try matching by category and size
+            if not asset:
+                for a in assets:
+                    if (a.get("category") == pred.get("category") and 
+                        not a.get("objectId")):  # Unassigned asset
+                        # Check size similarity
+                        asset_size = a.get("size", [])
+                        pred_size = pred.get("size", [])
+                        if len(asset_size) == 3 and len(pred_size) == 3:
+                            size_diff = sum(abs(asset_size[i] - pred_size[i]) for i in range(3))
+                            if size_diff < 0.5:  # Within 0.5m total difference
+                                asset = a
+                                a["objectId"] = obj_id  # Assign to this object
+                                break
             
             metadata = {
                 "source": "semlayoutdiff" if semlayoutdiff.initialized else "stub"
@@ -275,19 +299,19 @@ async def generate_layout(request: LayoutRequest):
             
             if asset:
                 metadata.update({
-                    "assetId": asset["modelId"],
-                    "assetUrl": asset["url"],
+                    "assetId": asset.get("modelId"),
+                    "assetUrl": asset.get("url"),
                     "textureUrl": asset.get("textureUrl"),
-                    "assetQuality": asset["quality"],
+                    "assetQuality": asset.get("quality", quality),
                 })
             
             objects.append(
                 LayoutObject(
                     id=obj_id,
-                    category=pred["category"],
-                    position=pred["position"],
-                    size=pred["size"],
-                    orientation=pred["orientation"],
+                    category=pred.get("category", "furniture"),
+                    position=pred.get("position", [0, 0, 0]),
+                    size=pred.get("size", [1, 1, 1]),
+                    orientation=pred.get("orientation", 0.0),
                     metadata=metadata
                 )
             )

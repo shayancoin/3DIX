@@ -117,13 +117,15 @@ class AssetRetrieval:
 
         for asset in candidates:
             asset_size = asset["size"]
-            # Calculate size difference
+            # Calculate normalized size difference (L2 norm)
+            # This gives better matching for objects of different scales
             size_diff = np.array([
-                abs(asset_size[0] - target_size[0]),
-                abs(asset_size[1] - target_size[1]),
-                abs(asset_size[2] - target_size[2]),
+                abs(asset_size[0] - target_size[0]) / max(target_size[0], 0.1),
+                abs(asset_size[1] - target_size[1]) / max(target_size[1], 0.1),
+                abs(asset_size[2] - target_size[2]) / max(target_size[2], 0.1),
             ])
-            score = np.sum(size_diff)
+            # Use L2 norm for better matching
+            score = np.sqrt(np.sum(size_diff ** 2))
 
             if score < best_score:
                 best_score = score
@@ -191,8 +193,18 @@ class AssetRetrieval:
         for obj in layout_objects:
             category = obj.get("category", "furniture")
             size = obj.get("size", [1.0, 1.0, 1.0])
+            
+            # Ensure size is a list of 3 floats
+            if isinstance(size, (list, tuple)) and len(size) >= 3:
+                size = [float(size[0]), float(size[1]), float(size[2])]
+            else:
+                size = [1.0, 1.0, 1.0]
+            
             asset = self.retrieve_asset(category, size, quality)
             if asset:
-                asset["objectId"] = obj.get("id")
+                # Store object ID for later matching
+                obj_id = obj.get("id")
+                if obj_id:
+                    asset["objectId"] = obj_id
                 assets.append(asset)
         return assets
