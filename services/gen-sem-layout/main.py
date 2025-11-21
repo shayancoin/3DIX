@@ -6,9 +6,10 @@ import os
 import uvicorn
 import numpy as np
 import requests
-import requests
 from sem_layout_inference import generate_semantic_layout, to_layout_response, semantic_to_png_url
 from vibe_encoder import VibeEncoder
+from constraint_solver import ConstraintSolver, LayoutObject as ConstraintLayoutObject
+from room_configs import get_room_type_config
 
 app = FastAPI(
     title="3DIX Layout Generation Service",
@@ -176,7 +177,43 @@ async def generate_layout(request: LayoutRequest):
             seed=seed,
             vibe_bias=category_bias,
         )
+
         resp = to_layout_response(semantic, instances)
+
+        # Apply constraint solver (best-effort; falls back to original objects on error)
+        try:
+            room_config = get_room_type_config(request.room_type)
+            solver = ConstraintSolver(room_config)
+
+            solver_objects = [
+                ConstraintLayoutObject(
+                    id=obj["id"],
+                    category=obj["category"],
+                    position=tuple(obj["position"]),
+                    size=tuple(obj["size"]),
+                    orientation=float(obj.get("orientation", 0) * 90.0),
+                    metadata=obj.get("metadata", {}),
+                )
+                for obj in resp["objects"]
+            ]
+
+            adjusted_objects, _validation = solver.solve_constraints(solver_objects)
+
+            resp["objects"] = [
+                {
+                    "id": obj.id,
+                    "category": obj.category,
+                    "position": list(obj.position),
+                    "size": list(obj.size),
+                    "orientation": int((obj.orientation % 360) / 90) % 4 if isinstance(obj.orientation, (int, float)) else 0,
+                    "metadata": obj.metadata,
+                }
+                for obj in adjusted_objects
+            ]
+        except Exception:
+            # If constraint solver fails, continue with original objects
+            pass
+
         return LayoutResponse(**resp)
     except Exception:
         # Fallback stub on any failure

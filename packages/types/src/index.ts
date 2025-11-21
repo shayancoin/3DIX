@@ -152,8 +152,5 @@ export interface LayoutJobStatusResponse {
   updated_at?: string | null;
 }
 
-// Export all types
-
-
 // Export room configuration types
 export * from './room-configs';
