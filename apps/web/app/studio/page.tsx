@@ -6,6 +6,7 @@ import { LayoutCanvas } from '@/components/layout/LayoutCanvas';
 import { VibePanel } from '@/components/vibe/VibePanel';
 import { JobProgress } from '@/components/jobs/JobProgress';
 import { SemanticMapViewer } from '@/components/layout/SemanticMapViewer';
+import { SceneHistory } from '@/components/layout/SceneHistory';
 import { CanvasShell, LayoutScene3D } from '@3dix/three';
 import { ObjectReplacementPanel } from '@/components/objects/ObjectReplacementPanel';
 import { useJobPolling } from '@/hooks/useJobPolling';
@@ -119,6 +120,24 @@ export default function StudioPage() {
 
   const handleVibeSubmit = async (spec: VibeSpec) => {
     console.log('Generating layout with vibe spec:', spec);
+    
+    // Save vibe spec to room_generations table
+    if (roomIdNum) {
+      try {
+        await fetch(`/api/rooms/${roomIdNum}/generations`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            vibeSpec: spec,
+            status: 'stub',
+          }),
+        });
+      } catch (error) {
+        console.error('Error saving generation:', error);
+      }
+    }
   };
 
   const handleJobCreated = (jobId: number) => {
@@ -339,7 +358,7 @@ export default function StudioPage() {
             </div>
           )}
         </div>
-        <div className="w-80 flex-shrink-0 flex flex-col">
+        <div className="w-80 flex-shrink-0 flex flex-col border-l">
           {/* Object Replacement Panel */}
           {showObjectReplacement && selectedLayoutObjectId && (
             <div className="border-b">
@@ -347,6 +366,21 @@ export default function StudioPage() {
                 selectedObjectId={selectedLayoutObjectId}
                 onObjectReplaced={handleObjectReplaced}
                 onClose={() => setShowObjectReplacement(false)}
+              />
+            </div>
+          )}
+
+          {/* Scene History */}
+          {roomIdNum && (
+            <div className="h-64 border-b flex-shrink-0">
+              <SceneHistory
+                roomId={roomIdNum}
+                onGenerationSelect={(generation) => {
+                  const vibe = generation.vibeSpec as VibeSpec;
+                  if (vibe) {
+                    setVibeSpec(vibe);
+                  }
+                }}
               />
             </div>
           )}

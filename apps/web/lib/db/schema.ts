@@ -285,3 +285,31 @@ export type NewLayoutJob = typeof layoutJobs.$inferInsert;
 export type LayoutJobWithRoom = LayoutJob & {
   room: Room;
 };
+
+// Room Generations (Scene History) Schema
+export const roomGenerations = pgTable('room_generations', {
+  id: serial('id').primaryKey(),
+  roomId: integer('room_id')
+    .notNull()
+    .references(() => rooms.id, { onDelete: 'cascade' }),
+  vibeSpec: jsonb('vibe_spec').notNull(), // VibeSpec
+  status: varchar('status', { length: 20 }).notNull().default('stub'), // 'stub' | 'generated' | 'completed'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// Relations
+export const roomGenerationsRelations = relations(roomGenerations, ({ one }) => ({
+  room: one(rooms, {
+    fields: [roomGenerations.roomId],
+    references: [rooms.id],
+  }),
+}));
+
+// Type exports
+export type RoomGeneration = typeof roomGenerations.$inferSelect;
+export type NewRoomGeneration = typeof roomGenerations.$inferInsert;
+
+export type RoomGenerationWithRoom = RoomGeneration & {
+  room: Room;
+};

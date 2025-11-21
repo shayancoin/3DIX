@@ -1,6 +1,6 @@
 import { desc, and, eq, isNull } from 'drizzle-orm';
 import { db } from './drizzle';
-import { activityLogs, teamMembers, teams, users, projects, rooms, ProjectWithRooms, RoomWithProject, NewProject, NewRoom, layoutJobs, LayoutJob, NewLayoutJob, JobStatus } from './schema';
+import { activityLogs, teamMembers, teams, users, projects, rooms, ProjectWithRooms, RoomWithProject, NewProject, NewRoom, layoutJobs, LayoutJob, NewLayoutJob, JobStatus, roomGenerations, RoomGeneration, NewRoomGeneration } from './schema';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/session';
 
@@ -254,6 +254,19 @@ export async function getRoomsForProject(projectId: number) {
     .orderBy(desc(rooms.updatedAt));
 }
 
+export async function getRoomById(roomId: number) {
+  const [room] = await db
+    .select()
+    .from(rooms)
+    .where(and(
+      eq(rooms.id, roomId),
+      isNull(rooms.deletedAt)
+    ))
+    .limit(1);
+
+  return room || null;
+}
+
 export async function createRoom(data: NewRoom) {
   const [room] = await db
     .insert(rooms)
@@ -361,4 +374,46 @@ export async function getRunningJobs() {
     .select()
     .from(layoutJobs)
     .where(eq(layoutJobs.status, JobStatus.RUNNING));
+}
+
+// Room Generations (Scene History) Queries
+
+export async function createRoomGeneration(data: NewRoomGeneration) {
+  const [generation] = await db
+    .insert(roomGenerations)
+    .values(data)
+    .returning();
+
+  return generation;
+}
+
+export async function getRoomGenerations(roomId: number) {
+  return await db
+    .select()
+    .from(roomGenerations)
+    .where(eq(roomGenerations.roomId, roomId))
+    .orderBy(desc(roomGenerations.createdAt));
+}
+
+export async function getRoomGeneration(generationId: number) {
+  const [generation] = await db
+    .select()
+    .from(roomGenerations)
+    .where(eq(roomGenerations.id, generationId))
+    .limit(1);
+
+  return generation || null;
+}
+
+export async function updateRoomGeneration(generationId: number, updates: Partial<NewRoomGeneration>) {
+  const [generation] = await db
+    .update(roomGenerations)
+    .set({
+      ...updates,
+      updatedAt: new Date(),
+    })
+    .where(eq(roomGenerations.id, generationId))
+    .returning();
+
+  return generation;
 }
