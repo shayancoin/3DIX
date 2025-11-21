@@ -1,5 +1,5 @@
 test:
-  host: "localhost"
-  port: "27017"
-  db_name: "db"
-  collection_name: "collection_1"
+  host: mongo
+  port: 27017
+database: 3dix_db
+collection: 3dix_collection

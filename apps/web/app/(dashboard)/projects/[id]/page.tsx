@@ -1,25 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Plus, ArrowLeft, Edit, Trash2, DoorOpen } from 'lucide-react';
+import { Plus, ArrowLeft, Trash2, DoorOpen } from 'lucide-react';
 import Link from 'next/link';
 
 interface Room {
-  id: number;
+  _id: string;
   name: string;
-  roomType: string;
-  createdAt: string;
-  updatedAt: string;
+  type: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface Project {
-  id: number;
+  _id: string;
   name: string;
   description: string | null;
-  rooms: Room[];
+  // rooms are fetched separately in our API design, but we can fetch them here
 }
 
 export default function ProjectDetailPage() {
@@ -28,30 +28,43 @@ export default function ProjectDetailPage() {
   const projectId = params.id as string;
 
   const [project, setProject] = useState<Project | null>(null);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (projectId) {
-      fetchProject();
-    }
-  }, [projectId]);
-
-  const fetchProject = async () => {
+  const fetchProjectAndRooms = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/projects/${projectId}`);
-      if (!response.ok) {
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
+
+      // Fetch Project
+      const projectRes = await fetch(`${baseUrl}/projects/${projectId}`);
+      if (!projectRes.ok) {
         throw new Error('Failed to fetch project');
       }
-      const data = await response.json();
-      setProject(data);
+      const projectData = await projectRes.json();
+      setProject(projectData);
+
+      // Fetch Rooms
+      const roomsRes = await fetch(`${baseUrl}/rooms/?project_id=${projectId}`);
+      if (!roomsRes.ok) {
+        throw new Error('Failed to fetch rooms');
+      }
+      const roomsData = await roomsRes.json();
+      setRooms(roomsData);
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
+
+  useEffect(() => {
+    if (projectId) {
+      fetchProjectAndRooms();
+    }
+  }, [projectId, fetchProjectAndRooms]);
 
   const handleDeleteProject = async () => {
     if (!confirm('Are you sure you want to delete this project? This will also delete all rooms in the project.')) {
@@ -59,7 +72,8 @@ export default function ProjectDetailPage() {
     }
 
     try {
-      const response = await fetch(`/api/projects/${projectId}`, {
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
+      const response = await fetch(`${baseUrl}/projects/${projectId}`, {
         method: 'DELETE',
       });
 
@@ -120,9 +134,9 @@ export default function ProjectDetailPage() {
       </div>
 
       <div className="mb-6">
-        <h2 className="text-2xl font-semibold mb-4">Rooms ({project.rooms.length})</h2>
+        <h2 className="text-2xl font-semibold mb-4">Rooms ({rooms.length})</h2>
 
-        {project.rooms.length === 0 ? (
+        {rooms.length === 0 ? (
           <Card className="p-12 text-center">
             <DoorOpen className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <h3 className="text-xl font-semibold mb-2">No rooms yet</h3>
@@ -136,18 +150,18 @@ export default function ProjectDetailPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {project.rooms.map((room) => (
-              <Link key={room.id} href={`/projects/${projectId}/rooms/${room.id}`}>
+            {rooms.map((room) => (
+              <Link key={room._id} href={`/projects/${projectId}/rooms/${room._id}`}>
                 <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer h-full">
                   <div className="flex items-start justify-between mb-4">
                     <DoorOpen className="h-8 w-8 text-primary" />
                     <span className="text-xs px-2 py-1 bg-secondary rounded">
-                      {room.roomType}
+                      {room.type}
                     </span>
                   </div>
                   <h3 className="text-xl font-semibold mb-2">{room.name}</h3>
                   <div className="text-xs text-muted-foreground">
-                    Updated {new Date(room.updatedAt).toLocaleDateString()}
+                    Updated {new Date(room.updated_at).toLocaleDateString()}
                   </div>
                 </Card>
               </Link>

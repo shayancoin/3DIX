@@ -49,18 +49,11 @@ export interface BoundingBox2D {
 
 export interface SceneObject2D {
   id: string;
-  category: string; // e.g., 'refrigerator', 'sink', 'cabinet'
-  label?: string;
-  position: Point2D;
-  size: { width: number; height: number };
-  rotation?: number; // degrees
-  boundingBox: BoundingBox2D;
-  color?: string; // hex color for visualization
-  metadata?: {
-    confidence?: number;
-    modelId?: string;
-    [key: string]: any;
-  };
+  type: string; // e.g., 'sofa', 'table', 'chair'
+  position: { x: number; y: number };
+  rotation: number; // in degrees
+  dimensions: { width: number; depth: number };
+  color?: string; // for placeholder visualization
 }
 
 // 3D Scene Object Types (for future use)
@@ -150,23 +143,7 @@ export interface LayoutResponse {
 export type GenerationJobStatus = 'queued' | 'running' | 'completed' | 'failed';
 
 // Export all types
-export type {
-  VibePrompt,
-  VibeTag,
-  VibeSlider,
-  VibeSpec,
-  Point2D,
-  BoundingBox2D,
-  SceneObject2D,
-  Point3D,
-  LayoutObject,
-  CanvasViewport,
-  LayoutCanvasState,
-  SceneHistoryEntry,
-  LayoutRequest,
-  LayoutResponse,
-  GenerationJobStatus,
-};
+
 
 // Export room configuration types
 export * from './room-configs';
