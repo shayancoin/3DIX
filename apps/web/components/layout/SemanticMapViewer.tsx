@@ -10,6 +10,7 @@ interface SemanticMapViewerProps {
   roomLength?: number;
   onObjectClick?: (objectId: string) => void;
   selectedObjectId?: string;
+  selectedId?: string;
 }
 
 export function SemanticMapViewer({
@@ -19,6 +20,7 @@ export function SemanticMapViewer({
   roomLength = 4,
   onObjectClick,
   selectedObjectId,
+  selectedId,
 }: SemanticMapViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -78,7 +80,7 @@ export function SemanticMapViewer({
       const offsetY = (h - roomLength * scale) / 2;
 
       objects.forEach((obj) => {
-        const isSelected = obj.id === selectedObjectId;
+        const isSelected = obj.id === (selectedObjectId ?? selectedId);
         const x = offsetX + obj.position[0] * scale;
         const z = offsetY + obj.position[2] * scale;
         const objWidth = obj.size[0] * scale;
@@ -92,7 +94,8 @@ export function SemanticMapViewer({
         // Apply rotation
         ctx.save();
         ctx.translate(x + objWidth / 2, z + objDepth / 2);
-        ctx.rotate(obj.orientation);
+        const angle = Math.abs(obj.orientation) <= 3 ? obj.orientation * (Math.PI / 2) : obj.orientation;
+        ctx.rotate(angle);
         ctx.fillRect(-objWidth / 2, -objDepth / 2, objWidth, objDepth);
         ctx.strokeRect(-objWidth / 2, -objDepth / 2, objWidth, objDepth);
         ctx.restore();

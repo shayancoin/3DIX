@@ -236,6 +236,7 @@ export type RoomWithProject = Room & {
 
 // Job System Schema
 
+// Keep in sync with apps/web/lib/jobs/stateMachine.ts
 export enum JobStatus {
   QUEUED = 'queued',
   RUNNING = 'running',

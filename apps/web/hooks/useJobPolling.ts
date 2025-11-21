@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { GenerationJobStatus } from '@3dix/types';
+import { GenerationJobStatus, LayoutJobStatusResponse } from '@3dix/types';
 
 export interface JobStatus {
   id: number;
@@ -9,33 +9,66 @@ export interface JobStatus {
   progress: number | null;
   progressMessage: string | null;
   responseData: any;
+  result?: any;
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-export function useJobPolling(jobId: number | null, pollInterval: number = 2000) {
+const normalizeJob = (data: LayoutJobStatusResponse): JobStatus => {
+  const progress = data.progress ?? 0;
+  return {
+    id: typeof data.job_id === 'string' ? parseInt(data.job_id, 10) : data.job_id,
+    status: data.status,
+    progress: Number.isFinite(progress) ? progress : 0,
+    progressMessage: data.progress_message ?? null,
+    responseData: data.result ?? null,
+    result: data.result ?? null,
+    errorMessage: data.error ?? null,
+    createdAt: data.created_at,
+    updatedAt:
+      data.updated_at ||
+      data.completed_at ||
+      data.started_at ||
+      data.created_at,
+  };
+};
+
+export function useJobPolling(jobId: number | string | null, pollInterval: number = 2000) {
   const [job, setJob] = useState<JobStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingRef = useRef(false);
 
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    isPollingRef.current = false;
+  }, []);
+
   const fetchJob = useCallback(async () => {
     if (!jobId) return;
 
     try {
       setLoading(true);
-      const response = await fetch(`/api/jobs/${jobId}`);
+      const response = await fetch(`/api/layout-jobs/${jobId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch job');
       }
-      const data = await response.json();
-      setJob(data);
+      const data: LayoutJobStatusResponse = await response.json();
+      const normalized = normalizeJob(data);
+      setJob(normalized);
       setError(null);
 
       // Stop polling if job is completed or failed
-      if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
+      if (
+        normalized.status === 'completed' ||
+        normalized.status === 'failed' ||
+        normalized.status === 'cancelled'
+      ) {
         stopPolling();
       }
     } catch (err) {
@@ -44,7 +77,7 @@ export function useJobPolling(jobId: number | null, pollInterval: number = 2000)
     } finally {
       setLoading(false);
     }
-  }, [jobId]);
+  }, [jobId, stopPolling]);
 
   const startPolling = useCallback(() => {
     if (!jobId || isPollingRef.current) return;
@@ -56,14 +89,6 @@ export function useJobPolling(jobId: number | null, pollInterval: number = 2000)
       fetchJob();
     }, pollInterval);
   }, [jobId, pollInterval, fetchJob]);
-
-  const stopPolling = useCallback(() => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-      pollingRef.current = null;
-    }
-    isPollingRef.current = false;
-  }, []);
 
   useEffect(() => {
     if (jobId) {

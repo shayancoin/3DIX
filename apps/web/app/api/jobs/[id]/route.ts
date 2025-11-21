@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getLayoutJob, updateLayoutJob } from '@/lib/db/queries';
-import { getUser } from '@/lib/db/queries';
 import { z } from 'zod';
+import {
+  getLayoutJob,
+  getRoomWithProjectByRoomId,
+  getTeamForUser,
+  getUser,
+  updateLayoutJob,
+} from '@/lib/db/queries';
+import { JobStatus } from '@/lib/jobs/stateMachine';
 
 const updateJobSchema = z.object({
   status: z.enum(['queued', 'running', 'completed', 'failed', 'cancelled']).optional(),
@@ -16,10 +22,10 @@ const updateJobSchema = z.object({
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params;
+    const { id } = params;
     const jobId = parseInt(id, 10);
 
     if (isNaN(jobId)) {
@@ -31,9 +37,19 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const team = await getTeamForUser();
+    if (!team) {
+      return NextResponse.json({ error: 'No team found' }, { status: 404 });
+    }
+
     const job = await getLayoutJob(jobId);
     if (!job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
+
+    const room = await getRoomWithProjectByRoomId(job.roomId);
+    if (!room || room.project.teamId !== team.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     return NextResponse.json(job);
@@ -48,10 +64,10 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await params;
+    const { id } = params;
     const jobId = parseInt(id, 10);
 
     if (isNaN(jobId)) {
@@ -61,6 +77,21 @@ export async function PATCH(
     const user = await getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const team = await getTeamForUser();
+    if (!team) {
+      return NextResponse.json({ error: 'No team found' }, { status: 404 });
+    }
+
+    const currentJob = await getLayoutJob(jobId);
+    if (!currentJob) {
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
+
+    const room = await getRoomWithProjectByRoomId(currentJob.roomId);
+    if (!room || room.project.teamId !== team.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const body = await req.json();
@@ -75,7 +106,7 @@ export async function PATCH(
       updates.completedAt = new Date(validatedData.completedAt);
     }
 
-    const job = await updateLayoutJob(jobId, updates);
+    const job = await updateLayoutJob(jobId, updates as { status?: JobStatus });
     if (!job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
@@ -86,6 +117,12 @@ export async function PATCH(
       return NextResponse.json(
         { error: 'Invalid request data', details: error.errors },
         { status: 400 }
+      );
+    }
+    if (error instanceof Error && error.message.includes('Invalid job status transition')) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 },
       );
     }
     console.error('Error updating job:', error);

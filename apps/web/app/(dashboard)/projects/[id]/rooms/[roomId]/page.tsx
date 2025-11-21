@@ -1,18 +1,27 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Save, RotateCcw, Download } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { VibePanel } from '@/components/design/VibePanel';
+import { VibePanel, VibeFormState } from '@/components/design/VibePanel';
 import { SceneHistory } from '@/components/design/SceneHistory';
-import { SceneObject2D, VibeSpec } from '@3dix/types';
+import { JobProgress } from '@/components/jobs/JobProgress';
+import { useJobPolling } from '@/hooks/useJobPolling';
+import { SceneObject3D, SceneObject2D } from '@3dix/types';
+import { MaskControlsState } from '@/components/design/MaskControls';
+import { SemanticMapViewer } from '@/components/layout/SemanticMapViewer';
+import { LayoutScene3D } from '@3dix/three';
 
 // Dynamically import Canvas2D to avoid SSR issues with Konva
 const Canvas2D = dynamic(
     () => import('@/components/design/Canvas2D').then((mod) => mod.Canvas2D),
+    { ssr: false }
+);
+const LayoutScene3D = dynamic(
+    () => import('@3dix/three').then((mod) => mod.LayoutScene3D),
     { ssr: false }
 );
 
@@ -37,7 +46,6 @@ interface Room {
  * @returns A React element representing the room editor page
  */
 export default function RoomPage() {
-    const router = useRouter();
     const params = useParams();
     const projectId = params.id as string;
     const roomId = params.roomId as string;
@@ -48,13 +56,22 @@ export default function RoomPage() {
 
     // Design State
     const [objects, setObjects] = useState<SceneObject2D[]>([]);
-    const [vibe, setVibe] = useState<VibeSpec>({
+    const [vibe, setVibe] = useState<VibeFormState>({
         prompt: '',
         keywords: [],
         style_sliders: {},
     });
     const [history, setHistory] = useState<any[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [jobId, setJobId] = useState<number | string | null>(null);
+    const [lastRenderedJobId, setLastRenderedJobId] = useState<number | string | null>(null);
+    const [maskControls, setMaskControls] = useState<MaskControlsState>({ maskType: 'none', maskUrl: '' });
+    const [viewMode, setViewMode] = useState<'canvas' | 'semantic' | '3d'>('canvas');
+    const [quality, setQuality] = useState<'low' | 'medium' | 'high'>('high');
+    const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+    const [objects3D, setObjects3D] = useState<SceneObject3D[]>([]);
+
+    const { job, loading: jobLoading, error: jobError } = useJobPolling(jobId, 3000);
 
     const fetchRoom = useCallback(async () => {
         try {
@@ -85,25 +102,57 @@ export default function RoomPage() {
         );
     };
 
-    const handleGenerate = async () => {
-        setIsGenerating(true);
-        // TODO: Call generation API
-        console.log('Generating layout with vibe:', vibe);
+    const mapLayoutObjectsToScene = useCallback((layoutObjects: SceneObject3D[]): SceneObject2D[] => {
+        return layoutObjects.map((obj) => ({
+            id: obj.id || Math.random().toString(),
+            type: obj.category || 'object',
+            position: {
+                x: Array.isArray(obj.position) ? obj.position[0] ?? 0 : 0,
+                y: Array.isArray(obj.position) ? obj.position[2] ?? 0 : 0,
+            },
+            rotation: typeof obj.orientation === 'number' ? obj.orientation * 90 : 0,
+            dimensions: {
+                width: Array.isArray(obj.size) ? obj.size[0] ?? 1 : 1,
+                depth: Array.isArray(obj.size) ? obj.size[2] ?? 1 : 1,
+            },
+            color: '#2563eb',
+        }));
+    }, []);
 
-        // Simulate generation for now
-        setTimeout(() => {
-            const newObject: SceneObject2D = {
-                id: Math.random().toString(),
-                type: 'sofa',
-                position: { x: room!.width / 2, y: room!.length / 2 },
-                rotation: 0,
-                dimensions: { width: 2, depth: 0.8 },
-                color: '#e11d48',
-            };
-            setObjects((prev) => [...prev, newObject]);
+    const handleGenerate = async () => {
+        if (!room) return;
+        setIsGenerating(true);
+        setError(null);
+
+        try {
+            const response = await fetch('/api/layout-jobs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    room_id: Number(roomId),
+                    vibe_spec: vibe,
+                    constraints: {
+                        arch_mask_url: maskControls.maskUrl || undefined,
+                        mask_type: maskControls.maskType,
+                    },
+                }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                const message = data?.error?.message || data?.error || 'Failed to create job';
+                throw new Error(message);
+            }
+
+            const data = await response.json();
+            setJobId(data.job_id);
+            setLastRenderedJobId(null);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to create layout job');
             setIsGenerating(false);
-            addToHistory('Generated new layout');
-        }, 1500);
+        }
     };
 
     const addToHistory = (description: string) => {
@@ -119,6 +168,27 @@ export default function RoomPage() {
         console.log('Restore version:', historyId);
         // TODO: Implement restore logic
     };
+
+    useEffect(() => {
+        if (!jobId || !job) return;
+
+        if (job.status === 'queued' || job.status === 'running') {
+            setIsGenerating(true);
+        } else {
+            setIsGenerating(false);
+        }
+
+        if (job.status === 'completed' && job.result && jobId !== lastRenderedJobId) {
+            const layoutObjects = (job.result.objects || []) as SceneObject3D[];
+            if (layoutObjects.length > 0) {
+                setObjects(mapLayoutObjectsToScene(layoutObjects));
+                setObjects3D(layoutObjects);
+                addToHistory(`Generated layout via job #${jobId}`);
+                setSelectedObjectId(layoutObjects[0]?.id ?? null);
+            }
+            setLastRenderedJobId(jobId);
+        }
+    }, [job, jobId, lastRenderedJobId, mapLayoutObjectsToScene]);
 
     if (loading) {
         return (
@@ -174,24 +244,86 @@ export default function RoomPage() {
             <div className="flex-1 flex overflow-hidden">
                 {/* Canvas Area */}
                 <main className="flex-1 bg-slate-50 p-8 overflow-hidden flex items-center justify-center relative">
-                    <div className="shadow-2xl rounded-lg overflow-hidden border bg-white">
-                        <Canvas2D
-                            width={800}
-                            height={600}
-                            roomDimensions={{ width: room.width, length: room.length }}
-                            objects={objects}
-                            onObjectUpdate={handleObjectUpdate}
-                        />
+                    <div className="shadow-2xl rounded-lg overflow-hidden border bg-white relative w-full">
+                        <div className="absolute top-4 right-4 z-10 flex gap-2">
+                            <Button size="sm" variant={viewMode === 'canvas' ? 'default' : 'outline'} onClick={() => setViewMode('canvas')}>
+                                Canvas
+                            </Button>
+                            <Button size="sm" variant={viewMode === 'semantic' ? 'default' : 'outline'} onClick={() => setViewMode('semantic')}>
+                                Semantic Map
+                            </Button>
+                            <Button size="sm" variant={viewMode === '3d' ? 'default' : 'outline'} onClick={() => setViewMode('3d')}>
+                                3D
+                            </Button>
+                            {viewMode === '3d' && (
+                                <div className="flex gap-1">
+                                    <Button size="sm" variant={quality === 'low' ? 'default' : 'outline'} onClick={() => setQuality('low')}>
+                                        Low
+                                    </Button>
+                                    <Button size="sm" variant={quality === 'medium' ? 'default' : 'outline'} onClick={() => setQuality('medium')}>
+                                        Med
+                                    </Button>
+                                    <Button size="sm" variant={quality === 'high' ? 'default' : 'outline'} onClick={() => setQuality('high')}>
+                                        High
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                        {viewMode === 'canvas' ? (
+                            <Canvas2D
+                                width={800}
+                                height={600}
+                                roomDimensions={{ width: room.width, length: room.length }}
+                                objects={objects}
+                                onObjectUpdate={handleObjectUpdate}
+                                selectedObjectId={selectedObjectId}
+                                onSelectObject={setSelectedObjectId}
+                            />
+                        ) : viewMode === 'semantic' ? (
+                            <div className="p-4">
+                                <SemanticMapViewer
+                                    semanticMapUrl={(job?.result as any)?.semantic_map_png_url}
+                                    objects={(job?.result?.objects as any) || []}
+                                    roomWidth={room.width}
+                                    roomLength={room.length}
+                                    selectedId={selectedObjectId || undefined}
+                                    onObjectClick={(id) => setSelectedObjectId(id)}
+                                />
+                            </div>
+                        ) : (
+                            <div className="h-[600px] w-[800px]">
+                                <LayoutScene3D
+                                    objects={objects3D}
+                                    roomOutline={(job?.result as any)?.room_outline}
+                                    selectedId={selectedObjectId || undefined}
+                                    quality={quality}
+                                    onSelect={(id) => setSelectedObjectId(id)}
+                                />
+                            </div>
+                        )}
                     </div>
                 </main>
 
                 {/* Right Sidebar */}
                 <aside className="w-80 border-l bg-background flex flex-col shrink-0">
                     <SceneHistory history={history} onRestore={handleRestore} />
-                    <div className="flex-1 overflow-hidden">
+                    <div className="flex-1 overflow-hidden space-y-4 p-4">
+                        <JobProgress job={job} loading={jobLoading} />
+                        {jobError && (
+                            <div className="text-sm text-destructive">
+                                {jobError}
+                            </div>
+                        )}
+                        {error && (
+                            <div className="text-sm text-destructive">
+                                {error}
+                            </div>
+                        )}
                         <VibePanel
                             vibe={vibe}
                             onVibeUpdate={setVibe}
+                            maskControls={maskControls}
+                            onMaskChange={setMaskControls}
                             onGenerate={handleGenerate}
                             isGenerating={isGenerating}
                         />
