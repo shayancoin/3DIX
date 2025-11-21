@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useMemo } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
 import { Box, Grid, OrbitControls, PerspectiveCamera, Text } from '@react-three/drei';
 import { LayoutObject, Point3D } from '@3dix/types';
@@ -10,6 +10,7 @@ interface LayoutScene3DProps {
   roomWidth?: number;
   roomLength?: number;
   roomHeight?: number;
+  roomOutline?: [number, number][]; // Array of [x, z] points defining room boundary
   selectedObjectId?: string;
   onObjectClick?: (objectId: string | undefined) => void;
   cameraPosition?: [number, number, number];
@@ -108,7 +109,7 @@ function LayoutObject3D({
       {isSelected && !hasAsset && (
         <lineSegments>
           <edgesGeometry args={[new THREE.BoxGeometry(width, height, depth)]} />
-          <lineBasicMaterial color="#3B82F6" linewidth={3} />
+          <lineBasicMaterial color="#3B82F6" linewidth={2} />
         </lineSegments>
       )}
       {/* Label */}
@@ -132,6 +133,7 @@ export function LayoutScene3D({
   roomWidth = 5,
   roomLength = 4,
   roomHeight = 2.5,
+  roomOutline,
   selectedObjectId,
   onObjectClick,
   cameraPosition = [8, 6, 8],
@@ -192,11 +194,34 @@ export function LayoutScene3D({
 
       {/* Room boundary visualization */}
       <group onClick={handleBackgroundClick}>
-        {/* Floor */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[roomWidth / 2, 0, roomLength / 2]} receiveShadow>
-          <planeGeometry args={[roomWidth, roomLength]} />
-          <meshStandardMaterial color="#F5F5F5" opacity={0.3} transparent />
-        </mesh>
+        {/* Floor - use room outline if provided, otherwise use rectangular room */}
+        {(() => {
+          if (roomOutline && roomOutline.length > 0) {
+            const shape = new THREE.Shape();
+            roomOutline.forEach((point, index) => {
+              if (index === 0) {
+                shape.moveTo(point[0], point[1]);
+              } else {
+                shape.lineTo(point[0], point[1]);
+              }
+            });
+            shape.closePath();
+            
+            return (
+              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+                <shapeGeometry args={[shape]} />
+                <meshStandardMaterial color="#F5F5F5" opacity={0.3} transparent side={THREE.DoubleSide} />
+              </mesh>
+            );
+          } else {
+            return (
+              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[roomWidth / 2, 0, roomLength / 2]} receiveShadow>
+                <planeGeometry args={[roomWidth, roomLength]} />
+                <meshStandardMaterial color="#F5F5F5" opacity={0.3} transparent />
+              </mesh>
+            );
+          }
+        })()}
 
         {/* Walls (optional, can be enabled) */}
         {/* Back wall */}
