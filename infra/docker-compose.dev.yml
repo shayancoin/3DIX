@@ -5,6 +5,7 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/Dockerfile.api
+    restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
@@ -13,5 +14,25 @@ services:
       - ../services/api/.env.dev
     environment:
       - ENV_STATE=dev
+      - APP_ENV_FILE=/app/.env.dev
     command: uvicorn manage:app --host 0.0.0.0 --port 8000 --reload
     working_dir: /app
+    develop:
+      watch:
+        - action: sync
+          path: ../services/api
+          target: /app
+        - action: rebuild
+          path: ../services/api/requirements.txt
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import urllib.request
+          urllib.request.urlopen("http://localhost:8000/docs")
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s

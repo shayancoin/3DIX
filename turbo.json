@@ -1,5 +1,11 @@
 {
     "$schema": "https://turbo.build/schema.json",
+    "globalEnv": [
+        "NODE_ENV",
+        "API_URL",
+        "NEXT_PUBLIC_API_URL",
+        "BASE_URL"
+    ],
     "pipeline": {
         "dev": {
             "cache": false,

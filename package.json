@@ -5,7 +5,10 @@
     "scripts": {
         "dev": "turbo dev",
         "dev:web": "turbo dev --filter @3dix/web",
-        "dev:api": "uvicorn manage:app --reload --host 0.0.0.0 --port 8000 --app-dir services/api",
+        "dev:api": "cd services/api && uvicorn manage:app --reload --host 0.0.0.0 --port 8000",
+        "dev:stack": "concurrently -k \"pnpm dev:api\" \"pnpm dev:web\"",
+        "dev:api:docker": "docker compose -f infra/docker-compose.dev.yml up --build",
+        "verify:devloop": "bash ./scripts/verify-dev-loop.sh",
         "build": "turbo build",
         "lint": "turbo lint",
         "test": "turbo test"
@@ -15,6 +18,7 @@
         "typescript": "^5.4.5",
         "eslint": "^8.57.0",
         "prettier": "^3.2.5",
-        "ts-node": "^10.9.2"
+        "ts-node": "^10.9.2",
+        "concurrently": "^9.1.2"
     }
 }

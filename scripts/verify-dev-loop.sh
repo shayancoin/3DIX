@@ -62,6 +62,12 @@ else
     echo -e "${YELLOW}⚠ apps/web/.env.example not found${NC}"
 fi
 
+if [ -f "apps/web/.env.development" ]; then
+    echo -e "${GREEN}✓ apps/web/.env.development exists${NC}"
+else
+    echo -e "${YELLOW}⚠ apps/web/.env.development not found${NC}"
+fi
+
 if [ -f "services/api/.env.dev" ]; then
     echo -e "${GREEN}✓ services/api/.env.dev exists${NC}"
 else
@@ -88,6 +94,7 @@ echo ""
 echo "Next steps:"
 echo "1. Configure environment variables (see README.md)"
 echo "2. Install dependencies: pnpm install"
-echo "3. Start backend: pnpm dev:api (or use docker-compose)"
+echo "3. Start backend: pnpm dev:api (or pnpm dev:api:docker)"
 echo "4. Start frontend: pnpm dev:web"
-echo "5. Visit http://localhost:3000 (web) and http://localhost:8000/docs (API)"
+echo "5. Use pnpm dev:stack for a combined loop when both services are needed"
+echo "6. Visit http://localhost:3000 (web) and http://localhost:8000/docs (API)"

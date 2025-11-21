@@ -53,9 +53,14 @@ This monorepo was fused from the following sources:
    cd apps/web
    # Use the setup script to create .env file
    pnpm db:setup
-   # Or manually copy and configure
+    # Or manually copy and configure
    cp .env.example .env.local
    ```
+    
+    > ℹ️ The repo includes `apps/web/.env.development` with localhost-safe defaults
+    > (`API_URL`/`NEXT_PUBLIC_API_URL` pointing to `http://localhost:8000`). Next.js
+    > loads it automatically during `pnpm dev:web`, so you only need to create
+    > `.env.local` when overriding sensitive values (Stripe keys, database, etc.).
    
    Required variables:
    - `POSTGRES_URL`: Database connection string
@@ -111,10 +116,15 @@ uvicorn manage:app --reload --host 0.0.0.0 --port 8000
 Option 2: Docker Compose (with hot reload)
 ```bash
 # From root directory
-docker compose -f infra/docker-compose.dev.yml up --build
+pnpm dev:api:docker
 ```
 
 The API will be available at `http://localhost:8000` and the web app at `http://localhost:3000`.
+
+**Full Stack Loop (Web + API):**
+```bash
+pnpm dev:stack
+```
 
 **ML Service (Development):**
 ```bash
@@ -143,13 +153,16 @@ The ML service will be available at `http://localhost:8001`.
    pnpm dev:api
    
    # Option 2: Docker Compose
-   docker compose -f infra/docker-compose.dev.yml up --build
+   pnpm dev:api:docker
    ```
    Verify: Visit `http://localhost:8000/docs` to see the FastAPI Swagger UI
 
 2. **Start the Frontend:**
    ```bash
    pnpm dev:web
+   
+   # Or start both services from one terminal
+   pnpm dev:stack
    ```
    Verify: Visit `http://localhost:3000` to see the web app
 
@@ -157,6 +170,11 @@ The ML service will be available at `http://localhost:8001`.
    - The web app is configured to call the backend API at `http://localhost:8000`
    - The `/api/vibe/echo` endpoint in the web app proxies to the backend API
    - Set `NEXT_PUBLIC_API_URL=http://localhost:8000` in your `.env.local` for client-side API calls
+
+4. **Automated verification:**
+   ```bash
+   pnpm verify:devloop
+   ```
 
 ### Environment Variables Summary
 
@@ -166,7 +184,9 @@ The ML service will be available at `http://localhost:8001`.
 - `STRIPE_WEBHOOK_SECRET`: Stripe webhook secret
 - `BASE_URL`: Web app base URL (default: `http://localhost:3000`)
 - `AUTH_SECRET`: JWT secret
+- `API_URL`: Server-side backend API URL (default: `http://localhost:8000`)
 - `NEXT_PUBLIC_API_URL`: Backend API URL (default: `http://localhost:8000`)
+  - Pre-populated via `apps/web/.env.development` for local development
 
 **API Service (`services/api/.env.dev`):**
 - `ENV_STATE`: Environment state (`dev` or `prod`)
