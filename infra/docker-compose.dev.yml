@@ -13,5 +13,32 @@ services:
       - ../services/api/.env.dev
     environment:
       - ENV_STATE=dev
+      - ML_SERVICE_URL=http://ml-service:8001
+      - POSTGRES_URL=${POSTGRES_URL:-postgresql://user:password@postgres:5432/3dix}
     command: uvicorn manage:app --host 0.0.0.0 --port 8000 --reload
     working_dir: /app
+    depends_on:
+      - ml-service
+
+  ml-service:
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.ml
+    ports:
+      - "8001:8001"
+    volumes:
+      - ../services/gen-sem-layout:/app/services/gen-sem-layout
+      - ../research/sem-layout-diff:/app/research/sem-layout-diff
+    environment:
+      - PORT=8001
+      - ML_SERVICE_URL=http://ml-service:8001
+      # SemLayoutDiff model paths (optional, will use stub if not set)
+      - SLDN_CHECKPOINT_PATH=${SLDN_CHECKPOINT_PATH:-}
+      - APM_CHECKPOINT_PATH=${APM_CHECKPOINT_PATH:-}
+      - SEMLAYOUTDIFF_CONFIG_PATH=${SEMLAYOUTDIFF_CONFIG_PATH:-}
+      # 3D-FUTURE dataset paths (optional)
+      - THREED_FUTURE_DATASET_PATH=${THREED_FUTURE_DATASET_PATH:-}
+      - THREED_FUTURE_MODEL_INFO_PATH=${THREED_FUTURE_MODEL_INFO_PATH:-}
+      - ASSET_BASE_URL=${ASSET_BASE_URL:-http://localhost:8001/assets}
+    command: uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+    working_dir: /app/services/gen-sem-layout

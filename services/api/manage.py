@@ -31,14 +31,16 @@ app = get_application()
 
 @app.on_event("startup")
 async def startup_event():
-    """Start the stub worker on application startup."""
+    """Start the worker on application startup."""
     global _worker
+    import os
     
-    _worker = StubWorker()
+    ml_service_url = os.getenv("ML_SERVICE_URL", "http://localhost:8001")
+    _worker = StubWorker(ml_service_url=ml_service_url)
     
     # Start worker in background
     asyncio.create_task(_worker.run(poll_interval=3))
-    print("Stub worker started in background")
+    print(f"Worker started in background (ML Service: {ml_service_url})")
 
 
 @app.on_event("shutdown")

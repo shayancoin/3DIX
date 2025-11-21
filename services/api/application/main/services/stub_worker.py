@@ -1,6 +1,6 @@
 """
-Stub worker for Step 3 that generates dummy layouts without calling ML service.
-This will be replaced in Step 4 with real ML service integration.
+Worker for Step 4 that calls the ML microservice for layout generation.
+This replaces the stub worker from Step 3.
 """
 
 import asyncio
@@ -9,28 +9,52 @@ import uuid
 from typing import Optional
 from datetime import datetime
 import os
+import httpx
 from application.main.infrastructure.database.postgresql.operations import Postgresql
 
 
 class StubWorker:
-    """Stub worker that generates dummy layout results for Step 3."""
+    """Worker that calls ML microservice for layout generation."""
 
     def __init__(
         self,
         worker_id: Optional[str] = None,
-        db: Optional[Postgresql] = None
+        db: Optional[Postgresql] = None,
+        ml_service_url: Optional[str] = None
     ):
         self.db = db or Postgresql()
-        self.worker_id = worker_id or f"stub-worker-{uuid.uuid4().hex[:8]}"
+        self.ml_service_url = ml_service_url or os.getenv(
+            "ML_SERVICE_URL",
+            "http://localhost:8001"
+        )
+        self.worker_id = worker_id or f"worker-{uuid.uuid4().hex[:8]}"
         self.running = False
         self.current_job_id: Optional[int] = None
 
+    async def call_ml_service(self, request_data: dict) -> dict:
+        """
+        Call the ML microservice to generate a layout.
+        Falls back to stub generation if ML service is unavailable.
+        """
+        try:
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                response = await client.post(
+                    f"{self.ml_service_url}/generate",
+                    json=request_data,
+                )
+                response.raise_for_status()
+                return response.json()
+        except (httpx.HTTPError, httpx.TimeoutException) as e:
+            print(f"ML service unavailable ({e}), falling back to stub generation")
+            # Fallback to stub generation
+            return self.generate_dummy_layout(request_data)
+    
     def generate_dummy_layout(self, request_data: dict) -> dict:
         """
-        Generate a dummy layout response for Step 3.
-        This creates a simple layout with a few objects.
+        Generate a dummy layout response as fallback.
+        This is used when ML service is unavailable.
         """
-        # Extract room type from request data (can be nested in vibeSpec or constraints)
+        # Extract room type from request data
         vibe_spec = request_data.get('vibeSpec', {}) or request_data.get('vibe_spec', {})
         room_type = (
             request_data.get('roomType') or 
@@ -116,10 +140,15 @@ class StubWorker:
             ]
 
         return {
+            "jobId": request_data.get('roomId', 'unknown'),
+            "status": "completed",
             "objects": objects,
-            "world_scale": 0.01,
-            "semantic_map_png_url": None,  # Will be added in Step 5
-            "room_outline": None,  # Will be added in Step 5
+            "semanticMap": None,
+            "mask": None,
+            "metadata": {
+                "stub": True,
+                "fallback": True,
+            }
         }
 
     async def process_job(self, job_id: int, request_data: dict) -> dict:
@@ -139,37 +168,44 @@ class StubWorker:
                 started_at=datetime.utcnow()
             )
 
-            # Simulate processing time (3-5 seconds)
-            await asyncio.sleep(1)
+            # Format request for ML service
+            # The request_data from frontend should already be in the correct format
+            # but we ensure it matches LayoutRequest schema
+            ml_request = {
+                "roomId": request_data.get("roomId", str(job_id)),
+                "vibeSpec": request_data.get("vibeSpec", {}),
+                "constraints": request_data.get("constraints", {}),
+            }
+
             await self.update_job_status(
                 job_id,
                 "running",
-                progress=30,
-                progress_message="Generating layout..."
+                progress=20,
+                progress_message="Calling ML service..."
             )
 
-            await asyncio.sleep(1)
-            await self.update_job_status(
-                job_id,
-                "running",
-                progress=60,
-                progress_message="Processing objects..."
-            )
-
-            await asyncio.sleep(1)
+            # Call ML service to generate layout
+            ml_response = await self.call_ml_service(ml_request)
+            
             await self.update_job_status(
                 job_id,
                 "running",
                 progress=90,
-                progress_message="Finalizing layout..."
+                progress_message="Processing ML response..."
             )
 
-            # Generate dummy layout
-            response_data = self.generate_dummy_layout(request_data)
-            response_data["metadata"] = {
-                "processingTime": time.time() - start_time,
-                "workerId": self.worker_id,
-                "stub": True,  # Mark as stub for Step 3
+            # Format response data to match expected structure
+            response_data = {
+                "jobId": str(job_id),
+                "status": ml_response.get("status", "completed"),
+                "objects": ml_response.get("objects", []),
+                "mask": ml_response.get("mask"),
+                "semanticMap": ml_response.get("semanticMap"),
+                "metadata": {
+                    **ml_response.get("metadata", {}),
+                    "processingTime": time.time() - start_time,
+                    "workerId": self.worker_id,
+                },
             }
 
             # Mark as completed
@@ -239,7 +275,7 @@ class StubWorker:
     async def run(self, poll_interval: int = 3):
         """Run the worker, polling for new jobs."""
         self.running = True
-        print(f"Stub Worker {self.worker_id} started (polling every {poll_interval}s)")
+        print(f"Worker {self.worker_id} started (ML Service: {self.ml_service_url}, polling every {poll_interval}s)")
 
         while self.running:
             try:
@@ -270,7 +306,7 @@ class StubWorker:
     def stop(self):
         """Stop the worker."""
         self.running = False
-        print(f"Stub Worker {self.worker_id} stopped")
+        print(f"Worker {self.worker_id} stopped")
 
 
 # Standalone worker script

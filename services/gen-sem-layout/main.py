@@ -10,6 +10,7 @@ from typing import Optional, List, Dict, Any
 import uvicorn
 import time
 import os
+import numpy as np
 from semlayoutdiff_integration import SemLayoutDiffIntegration
 from asset_retrieval import AssetRetrieval
 from vibe_encoder import VibeEncoder
@@ -42,17 +43,22 @@ semlayoutdiff = SemLayoutDiffIntegration(
     config_path=config_path
 )
 
-# Initialize asset retrieval
+# Initialize asset retrieval (will use stub mode if dataset not available)
 asset_retrieval = AssetRetrieval(
     dataset_path=os.getenv("THREED_FUTURE_DATASET_PATH"),
     model_info_path=os.getenv("THREED_FUTURE_MODEL_INFO_PATH"),
     base_url=os.getenv("ASSET_BASE_URL", "http://localhost:8001/assets")
 )
 
-# Initialize vibe encoder
+# Initialize vibe encoder (will use stub mode if CLIP not available)
 vibe_encoder = VibeEncoder(
     text_model_name=os.getenv("VIBE_ENCODER_MODEL", "openai/clip-vit-base-patch32")
 )
+
+# Log initialization status
+print(f"SemLayoutDiff initialized: {semlayoutdiff.initialized}")
+print(f"Asset retrieval available: {asset_retrieval.initialized if hasattr(asset_retrieval, 'initialized') else 'unknown'}")
+print(f"Vibe encoder initialized: {vibe_encoder.initialized if hasattr(vibe_encoder, 'initialized') else 'unknown'}")
 
 
 # Request/Response Models matching TypeScript types
@@ -178,6 +184,7 @@ async def serve_asset(model_id: str, filename: str):
 
 
 @app.post("/generate", response_model=LayoutResponse)
+@app.post("/generate-layout", response_model=LayoutResponse)  # Alias for compatibility
 async def generate_layout(request: LayoutRequest):
     """
     Generate a semantic room layout based on vibe specification.
@@ -185,174 +192,203 @@ async def generate_layout(request: LayoutRequest):
     This uses SemLayoutDiff for real layout generation when models are available,
     otherwise falls back to stub generation.
     """
-    start_time = time.time()
-    
-    room_type = request.vibeSpec.prompt.roomType
-    room_dims = request.constraints.roomDimensions if request.constraints else None
-    
-    # Default room dimensions if not provided
-    width = room_dims.width if room_dims else 5.0
-    length = room_dims.length if room_dims else 4.0
-    
-    # Encode vibe specification
-    vibe_encoded = vibe_encoder.encode_vibe_spec(request.vibeSpec.dict())
-    category_bias = vibe_encoded.get("category_bias", {})
-    
-    # Extract floor plan mask if provided
-    floor_plan_mask = None
-    if request.constraints and request.constraints.maskImage:
-        # Decode base64 mask image
-        import base64
-        from PIL import Image
-        import io
-        import numpy as np
+    try:
+        start_time = time.time()
         
+        room_type = request.vibeSpec.prompt.roomType
+        room_dims = request.constraints.roomDimensions if request.constraints else None
+        
+        # Default room dimensions if not provided
+        width = room_dims.width if room_dims else 5.0
+        length = room_dims.length if room_dims else 4.0
+        
+        # Encode vibe specification
         try:
-            mask_data = request.constraints.maskImage.split(',')[1] if ',' in request.constraints.maskImage else request.constraints.maskImage
-            mask_bytes = base64.b64decode(mask_data)
-            mask_img = Image.open(io.BytesIO(mask_bytes)).convert('L')
-            floor_plan_mask = np.array(mask_img)
+            vibe_encoded = vibe_encoder.encode_vibe_spec(request.vibeSpec.dict())
+            category_bias = vibe_encoded.get("category_bias", {})
         except Exception as e:
-            print(f"Warning: Failed to decode mask image: {e}")
-    
-    # Generate semantic layout using SemLayoutDiff with vibe encoding
-    text_embedding = np.array(vibe_encoded.get("combined_latent", [])) if vibe_encoded.get("combined_latent") else None
-    semantic_map, layout_metadata = semlayoutdiff.generate_semantic_layout(
-        room_type=room_type,
-        floor_plan_mask=floor_plan_mask,
-        num_samples=1,
-        text_embedding=text_embedding,
-        category_bias=category_bias
-    )
-    
-    # Predict 3D attributes from semantic map with category bias
-    attribute_predictions = semlayoutdiff.predict_attributes(
-        semantic_map=semantic_map,
-        room_type=room_type,
-        category_bias=category_bias
-    )
-    
-    # Retrieve assets for layout objects
-    quality = request.constraints.assetQuality if request.constraints and request.constraints.assetQuality else "high"
-    assets = asset_retrieval.retrieve_assets_for_layout(attribute_predictions, quality)
-    
-    # Convert predictions to LayoutObject format with asset information
-    objects = []
-    asset_map = {asset["objectId"]: asset for asset in assets if "objectId" in asset}
-    
-    for i, pred in enumerate(attribute_predictions):
-        obj_id = f"obj-{i+1}"
-        asset = asset_map.get(obj_id)
+            print(f"Warning: Vibe encoding failed: {e}, using default")
+            vibe_encoded = {}
+            category_bias = {}
         
-        metadata = {
-            "source": "semlayoutdiff" if semlayoutdiff.initialized else "stub"
-        }
+        # Extract floor plan mask if provided
+        floor_plan_mask = None
+        if request.constraints and request.constraints.maskImage:
+            # Decode base64 mask image
+            import base64
+            from PIL import Image
+            import io
+            import numpy as np
+            
+            try:
+                mask_data = request.constraints.maskImage.split(',')[1] if ',' in request.constraints.maskImage else request.constraints.maskImage
+                mask_bytes = base64.b64decode(mask_data)
+                mask_img = Image.open(io.BytesIO(mask_bytes)).convert('L')
+                floor_plan_mask = np.array(mask_img)
+            except Exception as e:
+                print(f"Warning: Failed to decode mask image: {e}")
         
-        if asset:
-            metadata.update({
-                "assetId": asset["modelId"],
-                "assetUrl": asset["url"],
-                "textureUrl": asset.get("textureUrl"),
-                "assetQuality": asset["quality"],
-            })
-        
-        objects.append(
-            LayoutObject(
-                id=obj_id,
-                category=pred["category"],
-                position=pred["position"],
-                size=pred["size"],
-                orientation=pred["orientation"],
-                metadata=metadata
+        # Generate semantic layout using SemLayoutDiff with vibe encoding
+        try:
+            text_embedding = np.array(vibe_encoded.get("combined_latent", [])) if vibe_encoded.get("combined_latent") else None
+            semantic_map, layout_metadata = semlayoutdiff.generate_semantic_layout(
+                room_type=room_type,
+                floor_plan_mask=floor_plan_mask,
+                num_samples=1,
+                text_embedding=text_embedding,
+                category_bias=category_bias
             )
-        )
-    
-    # Apply constraint solver for post-processing
-    room_config = get_room_type_config(room_type)
-    solver = ConstraintSolver(room_config)
-    
-    # Convert LayoutObject to ConstraintLayoutObject
-    constraint_objects = []
-    for obj in objects:
-        constraint_objects.append(
-            ConstraintLayoutObject(
-                id=obj.id,
-                category=obj.category,
-                position=tuple(obj.position),
-                size=tuple(obj.size),
-                orientation=obj.orientation,
-                metadata=obj.metadata
+        except Exception as e:
+            print(f"Error generating semantic layout: {e}")
+            raise HTTPException(status_code=500, detail=f"Layout generation failed: {str(e)}")
+        
+        # Predict 3D attributes from semantic map with category bias
+        try:
+            attribute_predictions = semlayoutdiff.predict_attributes(
+                semantic_map=semantic_map,
+                room_type=room_type,
+                category_bias=category_bias
             )
-        )
+        except Exception as e:
+            print(f"Error predicting attributes: {e}")
+            raise HTTPException(status_code=500, detail=f"Attribute prediction failed: {str(e)}")
+        
+        # Retrieve assets for layout objects
+        quality = request.constraints.assetQuality if request.constraints and request.constraints.assetQuality else "high"
+        try:
+            assets = asset_retrieval.retrieve_assets_for_layout(attribute_predictions, quality)
+        except Exception as e:
+            print(f"Warning: Asset retrieval failed: {e}, continuing without assets")
+            assets = []
+        
+        # Convert predictions to LayoutObject format with asset information
+        objects = []
+        asset_map = {asset["objectId"]: asset for asset in assets if "objectId" in asset}
+        
+        for i, pred in enumerate(attribute_predictions):
+            obj_id = f"obj-{i+1}"
+            asset = asset_map.get(obj_id)
+            
+            metadata = {
+                "source": "semlayoutdiff" if semlayoutdiff.initialized else "stub"
+            }
+            
+            if asset:
+                metadata.update({
+                    "assetId": asset["modelId"],
+                    "assetUrl": asset["url"],
+                    "textureUrl": asset.get("textureUrl"),
+                    "assetQuality": asset["quality"],
+                })
+            
+            objects.append(
+                LayoutObject(
+                    id=obj_id,
+                    category=pred["category"],
+                    position=pred["position"],
+                    size=pred["size"],
+                    orientation=pred["orientation"],
+                    metadata=metadata
+                )
+            )
+        
+        # Apply constraint solver for post-processing
+        room_config = get_room_type_config(room_type)
+        solver = ConstraintSolver(room_config)
+        
+        # Convert LayoutObject to ConstraintLayoutObject
+        constraint_objects = []
+        for obj in objects:
+            constraint_objects.append(
+                ConstraintLayoutObject(
+                    id=obj.id,
+                    category=obj.category,
+                    position=tuple(obj.position),
+                    size=tuple(obj.size),
+                    orientation=obj.orientation,
+                    metadata=obj.metadata
+                )
+            )
+        
+        # Solve constraints (adjusts objects and validates)
+        adjusted_objects, validation = solver.solve_constraints(constraint_objects)
+        
+        # Convert back to LayoutObject format
+        final_objects = []
+        for obj in adjusted_objects:
+            final_objects.append(
+                LayoutObject(
+                    id=obj.id,
+                    category=obj.category,
+                    position=list(obj.position),
+                    size=list(obj.size),
+                    orientation=obj.orientation,
+                    metadata={
+                        **(obj.metadata or {}),
+                        "constraintValidated": True,
+                    }
+                )
+            )
     
-    # Solve constraints (adjusts objects and validates)
-    adjusted_objects, validation = solver.solve_constraints(constraint_objects)
-    
-    # Convert back to LayoutObject format
-    final_objects = []
-    for obj in adjusted_objects:
-        final_objects.append(
-            LayoutObject(
-                id=obj.id,
-                category=obj.category,
-                position=list(obj.position),
-                size=list(obj.size),
-                orientation=obj.orientation,
-                metadata={
-                    **(obj.metadata or {}),
-                    "constraintValidated": True,
+        # Convert semantic map to base64 for response
+        try:
+            semantic_map_b64 = semlayoutdiff.semantic_map_to_base64(semantic_map)
+        except Exception as e:
+            print(f"Warning: Failed to encode semantic map: {e}")
+            semantic_map_b64 = None
+        
+        processing_time = time.time() - start_time
+        
+        # Prepare constraint validation metadata
+        constraint_metadata = {
+            "valid": validation.valid,
+            "errorCount": len(validation.errors),
+            "warningCount": len(validation.warnings),
+            "suggestionCount": len(validation.suggestions),
+            "errors": [
+                {
+                    "type": err.type,
+                    "categoryId": err.category_id,
+                    "objectId": err.object_id,
+                    "message": err.message,
+                    "severity": err.severity,
                 }
-            )
-        )
-    
-    # Convert semantic map to base64 for response
-    semantic_map_b64 = semlayoutdiff.semantic_map_to_base64(semantic_map)
-    
-    processing_time = time.time() - start_time
-    
-    # Prepare constraint validation metadata
-    constraint_metadata = {
-        "valid": validation.valid,
-        "errorCount": len(validation.errors),
-        "warningCount": len(validation.warnings),
-        "suggestionCount": len(validation.suggestions),
-        "errors": [
-            {
-                "type": err.type,
-                "categoryId": err.category_id,
-                "objectId": err.object_id,
-                "message": err.message,
-                "severity": err.severity,
-            }
-            for err in validation.errors
-        ],
-        "warnings": [
-            {
-                "type": warn.type,
-                "categoryId": warn.category_id,
-                "objectId": warn.object_id,
-                "message": warn.message,
-            }
-            for warn in validation.warnings
-        ],
-    }
-    
-    return LayoutResponse(
-        jobId=request.roomId,
-        status="completed",
-        mask=semantic_map_b64,
-        semanticMap=semantic_map_b64,
-        objects=final_objects,
-        metadata={
-            "processingTime": processing_time,
-            "modelVersion": "semlayoutdiff-v1.0" if semlayoutdiff.initialized else "stub-v1.0",
-            "roomType": room_type,
-            "layoutMetadata": layout_metadata,
-            "vibeEncoding": vibe_encoded.get("metadata", {}),
-            "categoryBias": category_bias,
-            "constraintValidation": constraint_metadata,
+                for err in validation.errors
+            ],
+            "warnings": [
+                {
+                    "type": warn.type,
+                    "categoryId": warn.category_id,
+                    "objectId": warn.object_id,
+                    "message": warn.message,
+                }
+                for warn in validation.warnings
+            ],
         }
-    )
+        
+        return LayoutResponse(
+            jobId=request.roomId,
+            status="completed",
+            mask=semantic_map_b64,
+            semanticMap=semantic_map_b64,
+            objects=final_objects,
+            metadata={
+                "processingTime": processing_time,
+                "modelVersion": "semlayoutdiff-v1.0" if semlayoutdiff.initialized else "stub-v1.0",
+                "roomType": room_type,
+                "layoutMetadata": layout_metadata,
+                "vibeEncoding": vibe_encoded.get("metadata", {}),
+                "categoryBias": category_bias,
+                "constraintValidation": constraint_metadata,
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in generate_layout: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Layout generation failed: {str(e)}")
 
 
 
