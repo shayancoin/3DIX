@@ -123,3 +123,42 @@ The API will be available at `http://localhost:8000` and the web app at `http://
   - Backend: Uvicorn with `--reload` flag watches for Python file changes
 - **Docker Development**: Use `docker-compose.dev.yml` for containerized development with volume mounts for live code updates
 
+### Verifying the Dev Loop
+
+1. **Start the Backend API:**
+   ```bash
+   # Option 1: Direct Python execution
+   pnpm dev:api
+   
+   # Option 2: Docker Compose
+   docker compose -f infra/docker-compose.dev.yml up --build
+   ```
+   Verify: Visit `http://localhost:8000/docs` to see the FastAPI Swagger UI
+
+2. **Start the Frontend:**
+   ```bash
+   pnpm dev:web
+   ```
+   Verify: Visit `http://localhost:3000` to see the web app
+
+3. **Test API Integration:**
+   - The web app is configured to call the backend API at `http://localhost:8000`
+   - The `/api/vibe/echo` endpoint in the web app proxies to the backend API
+   - Set `NEXT_PUBLIC_API_URL=http://localhost:8000` in your `.env.local` for client-side API calls
+
+### Environment Variables Summary
+
+**Web App (`apps/web/.env.local`):**
+- `POSTGRES_URL`: Database connection
+- `STRIPE_SECRET_KEY`: Stripe API key
+- `STRIPE_WEBHOOK_SECRET`: Stripe webhook secret
+- `BASE_URL`: Web app base URL (default: `http://localhost:3000`)
+- `AUTH_SECRET`: JWT secret
+- `NEXT_PUBLIC_API_URL`: Backend API URL (default: `http://localhost:8000`)
+
+**API Service (`services/api/.env.dev`):**
+- `ENV_STATE`: Environment state (`dev` or `prod`)
+- `DEV_API_NAME`, `DEV_API_DESCRIPTION`, `DEV_API_VERSION`: API metadata
+- `DEV_HOST`, `DEV_PORT`: Server configuration (default: `0.0.0.0:8000`)
+- `DEV_LOG_LEVEL`: Logging level (default: `debug`)
+
