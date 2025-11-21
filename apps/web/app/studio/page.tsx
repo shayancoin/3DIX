@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { LayoutCanvas } from '@/components/layout/LayoutCanvas';
 import { VibePanel } from '@/components/vibe/VibePanel';
