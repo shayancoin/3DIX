@@ -141,15 +141,15 @@ def stub_objects(seed: int) -> List[SceneObject3D]:
 @app.post("/generate-layout", response_model=LayoutResponse)
 async def generate_layout(request: LayoutRequest):
     """
-    Generate a semantic room layout from the given request, falling back to a deterministic stub response on any failure.
-
-    The function will attempt to fetch and load an architectural mask from request.arch_mask_url (if provided). If the fetch or image processing fails, the mask is ignored. It then calls the semantic layout generator and converts its output to a LayoutResponse. If semantic generation or conversion raises an exception, the function returns a fallback LayoutResponse containing a dummy semantic PNG URL, a deterministic list of scene objects derived from the seed, a world_scale of 0.01, and a default rectangular room_outline.
-
+    Generate a semantic room layout from the given request and return a LayoutResponse.
+    
+    Attempts to fetch an architectural mask (if request.arch_mask_url is provided), encodes the request's vibe specification to derive a vibe bias, and invokes the semantic layout generator. If any step fails, returns a deterministic fallback response containing a dummy semantic PNG URL, a seeded list of scene objects, world_scale 0.01, and a default rectangular room outline.
+    
     Parameters:
-        request (LayoutRequest): Request containing room_type, optional arch_mask_url, mask_type, vibe_spec, and optional seed.
-
+        request (LayoutRequest): Request containing room_type, optional arch_mask_url and mask_type, vibe_spec, and optional seed.
+    
     Returns:
-        LayoutResponse: A response containing semantic_map_png_url (when available), a list of SceneObject3D objects, world_scale, and an optional room_outline.
+        LayoutResponse: The generated layout response. On success this contains the semantic_map_png_url (when available), generated SceneObject3D objects, world_scale, and optional room_outline; on failure these fields are populated with the deterministic fallback values described above.
     """
     seed = request.seed or 1
 

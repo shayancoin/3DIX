@@ -159,25 +159,25 @@ def generate_semantic_layout(
 
 def to_layout_response(semantic: np.ndarray, instances: List[Instance]):
     """
-    Builds a layout response dictionary containing a PNG data URL of the semantic map, world scale, scene objects, a room outline, and generator metadata.
-
+    Builds a layout response containing a PNG data URL of the semantic map, world scale, scene objects, a room outline, and generator metadata.
+    
     Parameters:
-        semantic (np.ndarray): 2D semantic map array where integer values represent semantic class ids.
+        semantic (np.ndarray): 2D array of integer semantic class ids.
         instances (List[Instance]): List of instances as (category_id, size3d, pos3d, orientation).
-
+    
     Returns:
-        dict: A response object with the following keys:
+        dict: Response with keys:
             - semantic_map_png_url (str): PNG data URL generated from `semantic`.
             - world_scale (float): Scale factor applied to world coordinates.
-            - objects (List[dict]): List of object entries, each containing:
-                - id (str): UUID for the object.
+            - objects (List[dict]): Each object contains:
+                - id (str): UUID.
                 - category (str): Human-readable category name.
                 - position (List[float]): [x, y, z] world position.
                 - size (List[float]): [w, h, d] object size.
-                - orientation (int): Object orientation as an integer.
-                - mesh_url (str|None): URL to a matching asset mesh, or `None` if none found.
+                - orientation (int): Object orientation.
+                - mesh_url (str|None): URL to a best-matching asset mesh, or `None`.
             - room_outline (List[Tuple[float, float]]): Polygon points describing the room boundary.
-            - metadata (dict): Additional metadata; includes `"generator": "sem-layout-stub"`.
+            - metadata (dict): Additional metadata (includes `"generator": "sem-layout-stub"`).
     """
     objects = []
     for cid, size3d, pos3d, orient in instances:

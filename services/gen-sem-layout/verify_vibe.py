@@ -12,7 +12,9 @@ BASE_URL = "http://localhost:8003"
 
 def test_monotonicity():
     """
-    Test if 'cluttered' vibe produces more objects than 'minimalist' vibe.
+    Verify that a "cluttered" vibe yields as many or more objects than a "minimalist" vibe by generating multiple layouts and comparing average object counts.
+    
+    This function issues repeated requests to the layout generation service, prints the average object counts for each vibe, and prints "PASS: Monotonicity confirmed." if the average object count for the cluttered vibe is greater than or equal to the minimalist average; otherwise it prints "FAIL: Monotonicity violation."
     """
     print("\nRunning Monotonicity Test...")
 
@@ -65,7 +67,9 @@ def test_monotonicity():
 
 def test_category_sensitivity():
     """
-    Test if specific vibes increase probability of related objects.
+    Checks whether a sofa-targeted vibe increases the frequency of sofa objects in generated living-room layouts.
+    
+    Sends multiple layout generation requests using a vibe that targets "sofa", accumulates the total objects and sofa objects returned, computes the ratio of sofa objects to total objects, and prints a PASS if the ratio exceeds 0.20 or FAIL otherwise.
     """
     print("\nRunning Category Sensitivity Test...")
 
