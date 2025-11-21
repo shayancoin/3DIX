@@ -233,3 +233,55 @@ export type ProjectWithRooms = Project & {
 export type RoomWithProject = Room & {
   project: Project;
 };
+
+// Job System Schema
+
+export enum JobStatus {
+  QUEUED = 'queued',
+  RUNNING = 'running',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+  CANCELLED = 'cancelled',
+}
+
+export const layoutJobs = pgTable('layout_jobs', {
+  id: serial('id').primaryKey(),
+  roomId: integer('room_id')
+    .notNull()
+    .references(() => rooms.id, { onDelete: 'cascade' }),
+  status: varchar('status', { length: 20 }).notNull().default('queued'), // JobStatus enum
+  // Job request data
+  requestData: jsonb('request_data'), // LayoutRequest
+  // Job response data
+  responseData: jsonb('response_data'), // LayoutResponse
+  // Progress tracking
+  progress: integer('progress').default(0), // 0-100
+  progressMessage: text('progress_message'),
+  // Error tracking
+  errorMessage: text('error_message'),
+  errorDetails: jsonb('error_details'),
+  // Timestamps
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // Worker tracking
+  workerId: varchar('worker_id', { length: 255 }),
+  retryCount: integer('retry_count').default(0),
+});
+
+// Relations
+export const layoutJobsRelations = relations(layoutJobs, ({ one }) => ({
+  room: one(rooms, {
+    fields: [layoutJobs.roomId],
+    references: [rooms.id],
+  }),
+}));
+
+// Type exports
+export type LayoutJob = typeof layoutJobs.$inferSelect;
+export type NewLayoutJob = typeof layoutJobs.$inferInsert;
+
+export type LayoutJobWithRoom = LayoutJob & {
+  room: Room;
+};

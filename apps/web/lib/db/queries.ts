@@ -1,6 +1,6 @@
 import { desc, and, eq, isNull } from 'drizzle-orm';
 import { db } from './drizzle';
-import { activityLogs, teamMembers, teams, users, projects, rooms, ProjectWithRooms, RoomWithProject, NewProject, NewRoom } from './schema';
+import { activityLogs, teamMembers, teams, users, projects, rooms, ProjectWithRooms, RoomWithProject, NewProject, NewRoom, layoutJobs, LayoutJob, NewLayoutJob, JobStatus } from './schema';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/session';
 
@@ -292,4 +292,73 @@ export async function deleteRoom(roomId: number, projectId: number) {
       eq(rooms.projectId, projectId),
       isNull(rooms.deletedAt)
     ));
+}
+
+// Layout Jobs Queries
+
+export async function createLayoutJob(data: NewLayoutJob) {
+  const [job] = await db
+    .insert(layoutJobs)
+    .values(data)
+    .returning();
+
+  return job;
+}
+
+export async function getLayoutJob(jobId: number) {
+  const [job] = await db
+    .select()
+    .from(layoutJobs)
+    .where(eq(layoutJobs.id, jobId))
+    .limit(1);
+
+  return job || null;
+}
+
+export async function getLayoutJobsForRoom(roomId: number) {
+  return await db
+    .select()
+    .from(layoutJobs)
+    .where(eq(layoutJobs.roomId, roomId))
+    .orderBy(desc(layoutJobs.createdAt));
+}
+
+export async function getLatestLayoutJobForRoom(roomId: number) {
+  const [job] = await db
+    .select()
+    .from(layoutJobs)
+    .where(eq(layoutJobs.roomId, roomId))
+    .orderBy(desc(layoutJobs.createdAt))
+    .limit(1);
+
+  return job || null;
+}
+
+export async function updateLayoutJob(jobId: number, updates: Partial<NewLayoutJob>) {
+  const [job] = await db
+    .update(layoutJobs)
+    .set({
+      ...updates,
+      updatedAt: new Date(),
+    })
+    .where(eq(layoutJobs.id, jobId))
+    .returning();
+
+  return job;
+}
+
+export async function getQueuedJobs(limit: number = 10) {
+  return await db
+    .select()
+    .from(layoutJobs)
+    .where(eq(layoutJobs.status, JobStatus.QUEUED))
+    .orderBy(layoutJobs.createdAt)
+    .limit(limit);
+}
+
+export async function getRunningJobs() {
+  return await db
+    .select()
+    .from(layoutJobs)
+    .where(eq(layoutJobs.status, JobStatus.RUNNING));
 }

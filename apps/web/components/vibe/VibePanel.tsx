@@ -10,8 +10,10 @@ import { X, Plus, Tag } from 'lucide-react';
 interface VibePanelProps {
   initialVibeSpec?: VibeSpec;
   roomType: RoomType;
+  roomId?: number;
   onVibeSpecChange?: (vibeSpec: VibeSpec) => void;
   onSubmit?: (vibeSpec: VibeSpec) => void;
+  onJobCreated?: (jobId: number) => void;
 }
 
 // Predefined tag options
@@ -54,8 +56,10 @@ const DEFAULT_SLIDERS: VibeSlider[] = [
 export function VibePanel({
   initialVibeSpec,
   roomType,
+  roomId,
   onVibeSpecChange,
   onSubmit,
+  onJobCreated,
 }: VibePanelProps) {
   const [prompt, setPrompt] = useState(initialVibeSpec?.prompt.text || '');
   const [referenceImageUrl, setReferenceImageUrl] = useState(initialVibeSpec?.prompt.referenceImageUrl || '');
@@ -124,7 +128,15 @@ export function VibePanel({
     [prompt, referenceImageUrl, roomType, tags, sliders, onVibeSpecChange]
   );
 
-  const handleSubmit = useCallback(() => {
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const handleSubmit = useCallback(async () => {
+    if (!roomId) {
+      setSubmitError('Room ID is required');
+      return;
+    }
+
     const vibeSpec: VibeSpec = {
       prompt: { text: prompt, referenceImageUrl, roomType },
       tags,
@@ -134,8 +146,40 @@ export function VibePanel({
         updatedAt: new Date().toISOString(),
       },
     };
-    onSubmit?.(vibeSpec);
-  }, [prompt, referenceImageUrl, roomType, tags, sliders, onSubmit]);
+
+    setSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      // Create layout generation job
+      const response = await fetch('/api/jobs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          roomId,
+          requestData: {
+            roomId: roomId.toString(),
+            vibeSpec,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to create job');
+      }
+
+      const job = await response.json();
+      onJobCreated?.(job.id);
+      onSubmit?.(vibeSpec);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [prompt, referenceImageUrl, roomType, tags, sliders, roomId, onSubmit, onJobCreated]);
 
   return (
     <div className="flex flex-col h-full bg-white border-l border-gray-200">
@@ -252,10 +296,25 @@ export function VibePanel({
       </div>
 
       {/* Submit Button */}
-      <div className="p-4 border-t border-gray-200">
-        <Button onClick={handleSubmit} className="w-full" size="lg">
-          Generate Layout
+      <div className="p-4 border-t border-gray-200 space-y-2">
+        {submitError && (
+          <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+            {submitError}
+          </div>
+        )}
+        <Button
+          onClick={handleSubmit}
+          className="w-full"
+          size="lg"
+          disabled={submitting || !roomId}
+        >
+          {submitting ? 'Creating Job...' : 'Generate Layout'}
         </Button>
+        {!roomId && (
+          <p className="text-xs text-muted-foreground text-center">
+            Room ID is required to generate layout
+          </p>
+        )}
       </div>
     </div>
   );
