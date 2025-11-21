@@ -1,5 +1,15 @@
 // Room Types
-export type RoomType = 'bedroom' | 'kitchen' | 'bathroom' | 'closet' | 'living_room' | 'dining_room' | 'office' | 'other';
+export const ROOM_TYPES = [
+  'bedroom',
+  'kitchen',
+  'bathroom',
+  'closet',
+  'living',
+  'dining',
+  'custom',
+] as const;
+
+export type RoomType = (typeof ROOM_TYPES)[number];
 
 // Vibe Specification Types
 export interface VibePrompt {

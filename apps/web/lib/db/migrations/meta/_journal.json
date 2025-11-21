@@ -22,6 +22,13 @@
       "when": 1763710249080,
       "tag": "0002_blushing_cassandra_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1763729050535,
+      "tag": "0003_simple_komodo",
+      "breakpoints": true
     }
   ]
 }

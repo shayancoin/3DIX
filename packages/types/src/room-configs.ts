@@ -406,8 +406,8 @@ export const ROOM_TYPE_CONFIGS: Record<RoomType, RoomTypeConfig> = {
       },
     ],
   },
-  living_room: {
-    roomType: 'living_room',
+  living: {
+    roomType: 'living',
     name: 'Living Room',
     description: 'Living room layout with seating and entertainment',
     defaultDimensions: { width: 5, length: 4, height: 2.5 },
@@ -503,8 +503,8 @@ export const ROOM_TYPE_CONFIGS: Record<RoomType, RoomTypeConfig> = {
     categories: [],
     constraints: {},
   },
-  dining_room: {
-    roomType: 'dining_room',
+  dining: {
+    roomType: 'dining',
     name: 'Dining Room',
     description: 'Dining room layout',
     defaultDimensions: { width: 4, length: 3, height: 2.5 },
@@ -547,52 +547,9 @@ export const ROOM_TYPE_CONFIGS: Record<RoomType, RoomTypeConfig> = {
       ],
     },
   },
-  office: {
-    roomType: 'office',
-    name: 'Office',
-    description: 'Office layout',
-    defaultDimensions: { width: 3, length: 3, height: 2.5 },
-    categories: [
-      {
-        id: 'desk',
-        name: 'Desk',
-        required: true,
-        minCount: 1,
-        maxCount: 2,
-        minSize: [1.2, 0.75, 0.6],
-        maxSize: [2.0, 0.8, 0.8],
-        allowedPositions: 'wall',
-      },
-      {
-        id: 'chair',
-        name: 'Office Chair',
-        required: true,
-        minCount: 1,
-        maxCount: 2,
-        minSize: [0.5, 1.0, 0.5],
-        maxSize: [0.6, 1.2, 0.6],
-        allowedPositions: 'any',
-        dependencies: ['desk'],
-      },
-    ],
-    constraints: {
-      requiredCategories: ['desk', 'chair'],
-      layoutRules: [
-        {
-          id: 'chair_desk_proximity',
-          name: 'Chair-Desk Proximity',
-          type: 'proximity',
-          description: 'Chair should be near desk',
-          categoryIds: ['chair', 'desk'],
-          parameters: { maxDistance: 0.3 },
-          priority: 'required',
-        },
-      ],
-    },
-  },
-  other: {
-    roomType: 'other',
-    name: 'Other',
+  custom: {
+    roomType: 'custom',
+    name: 'Custom',
     description: 'Generic room layout',
     defaultDimensions: { width: 4, length: 3, height: 2.5 },
     categories: [],
@@ -604,7 +561,7 @@ export const ROOM_TYPE_CONFIGS: Record<RoomType, RoomTypeConfig> = {
  * Get configuration for a room type
  */
 export function getRoomTypeConfig(roomType: RoomType): RoomTypeConfig {
-  return ROOM_TYPE_CONFIGS[roomType] || ROOM_TYPE_CONFIGS.other;
+  return ROOM_TYPE_CONFIGS[roomType] || ROOM_TYPE_CONFIGS.custom;
 }
 
 /**
