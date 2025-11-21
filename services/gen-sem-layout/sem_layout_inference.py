@@ -164,7 +164,7 @@ def to_layout_response(semantic: np.ndarray, instances: List[Instance]):
     Parameters:
         semantic (np.ndarray): 2D array of integer semantic class ids.
         instances (List[Instance]): List of instances as (category_id, size3d, pos3d, orientation).
-    
+
     Returns:
         dict: Response with keys:
             - semantic_map_png_url (str): PNG data URL generated from `semantic`.
