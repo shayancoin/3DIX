@@ -8,11 +8,11 @@ import { Plus, Folder, Calendar } from 'lucide-react';
 import Link from 'next/link';
 
 interface Project {
-  id: number;
+  _id: string;
   name: string;
   description: string | null;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export default function ProjectsPage() {
@@ -28,7 +28,8 @@ export default function ProjectsPage() {
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/projects');
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
+      const response = await fetch(`${baseUrl}/projects/`);
       if (!response.ok) {
         throw new Error('Failed to fetch projects');
       }
@@ -86,7 +87,7 @@ export default function ProjectsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {projects.map((project) => (
-            <Link key={project.id} href={`/projects/${project.id}`}>
+            <Link key={project._id} href={`/projects/${project._id}`}>
               <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer h-full">
                 <div className="flex items-start justify-between mb-4">
                   <Folder className="h-8 w-8 text-primary" />
@@ -99,7 +100,7 @@ export default function ProjectsPage() {
                 )}
                 <div className="flex items-center text-xs text-muted-foreground">
                   <Calendar className="h-3 w-3 mr-1" />
-                  Updated {new Date(project.updatedAt).toLocaleDateString()}
+                  Updated {new Date(project.updated_at).toLocaleDateString()}
                 </div>
               </Card>
             </Link>

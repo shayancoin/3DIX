@@ -11,8 +11,7 @@ class IncludeAPIRouter(object):
         from application.main.routers.api_response import router as response_manager_test
         from application.main.routers.question_classifier import router as router_question_classification
         from application.main.routers.image_classifier import router as router_image_classification
-        from application.main.routers.vibe import router as router_vibe
-        from application.main.routers.projects import router as router_projects
+        from application.main.routers import vibe, projects, rooms
         from application.main.routers.jobs import router as router_jobs
         from application.main.routers.jobs_internal import router as router_jobs_internal
         from application.main.routers.custom_objects import router as router_custom_objects

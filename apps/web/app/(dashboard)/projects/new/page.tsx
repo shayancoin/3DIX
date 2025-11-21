@@ -22,7 +22,8 @@ export default function NewProjectPage() {
     setError(null);
 
     try {
-      const response = await fetch('/api/projects', {
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1';
+      const response = await fetch(`${baseUrl}/projects/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -32,11 +33,11 @@ export default function NewProjectPage() {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to create project');
+        throw new Error(data.detail || 'Failed to create project');
       }
 
       const project = await response.json();
-      router.push(`/projects/${project.id}`);
+      router.push(`/projects/${project._id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
