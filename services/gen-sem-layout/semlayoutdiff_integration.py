@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional, List, Tuple
 from PIL import Image
 import io
 import base64
+import colorsys
 
 # Add research code to path
 RESEARCH_PATH = os.path.join(os.path.dirname(__file__), "../../research/sem-layout-diff")
@@ -73,17 +74,73 @@ class SemLayoutDiffIntegration:
         config_path: Optional[str] = None
     ):
         """Initialize SLDN and APM models."""
-        # This would load the actual models
-        # For now, we'll create a structure that can be connected
         print(f"Initializing SemLayoutDiff models...")
         print(f"SLDN checkpoint: {sldn_checkpoint_path}")
         print(f"APM checkpoint: {apm_checkpoint_path}")
         
-        # TODO: Implement actual model loading
-        # self.sldn_sampler = LayoutSampler(...)
-        # self.apm_model = FurnitureAttributesModel.load_from_checkpoint(...)
-        
-        self.initialized = True
+        try:
+            # Initialize APM model (simpler, can be done first)
+            if apm_checkpoint_path and os.path.exists(apm_checkpoint_path):
+                # Load APM model using PyTorch Lightning
+                # Note: This requires a config file - we'll use a default structure
+                from omegaconf import DictConfig, OmegaConf
+                
+                # Create minimal config for APM if not provided
+                if config_path and os.path.exists(config_path):
+                    apm_config = OmegaConf.load(config_path)
+                else:
+                    # Use default config structure
+                    apm_config = OmegaConf.create({
+                        'model': {
+                            'semantic_encoder': {},
+                            'num_categories': 38,
+                            'embedding_dim': 256
+                        },
+                        'trainer': {
+                            'lr': 0.001,
+                            'l1_lambda': 0.1,
+                            'l2_lambda': 0.1
+                        }
+                    })
+                
+                self.apm_model = FurnitureAttributesModel.load_from_checkpoint(
+                    apm_checkpoint_path,
+                    config=apm_config,
+                    strict=False
+                )
+                self.apm_model.eval()
+                self.apm_model.freeze()
+                if torch.cuda.is_available():
+                    self.apm_model = self.apm_model.cuda()
+                print("APM model loaded successfully")
+            else:
+                print(f"APM checkpoint not found at {apm_checkpoint_path}, using stub mode")
+            
+            # Initialize SLDN sampler (more complex, requires config)
+            if sldn_checkpoint_path and os.path.exists(sldn_checkpoint_path):
+                # SLDN requires a full config with model path, etc.
+                # For now, we'll mark it as available but defer full initialization
+                # until we have proper config files
+                print("SLDN checkpoint found, but full initialization requires config files")
+                print("Using stub mode for SLDN until proper config is provided")
+                # self.sldn_sampler = LayoutSampler(cfg)  # Requires DictConfig
+            else:
+                print(f"SLDN checkpoint not found at {sldn_checkpoint_path}, using stub mode")
+            
+            # Mark as initialized if at least APM is loaded
+            # Full initialization requires both models + configs
+            if self.apm_model is not None:
+                self.initialized = True
+                print("SemLayoutDiff models initialized (partial - APM only)")
+            else:
+                print("SemLayoutDiff models not fully initialized, using stub mode")
+                
+        except Exception as e:
+            print(f"Error initializing SemLayoutDiff models: {e}")
+            import traceback
+            traceback.print_exc()
+            print("Falling back to stub mode")
+            self.initialized = False
 
     def generate_semantic_layout(
         self,
@@ -149,19 +206,35 @@ class SemLayoutDiffIntegration:
 
     def _generate_stub_semantic_map(self, room_type: str) -> np.ndarray:
         """Generate a stub semantic map for testing."""
-        # Create a simple semantic map (256x256)
+        # Create a semantic map matching SemLayoutDiff's expected size (1200x1200)
+        # For stub mode, we'll use a smaller size (256x256) for performance
         size = 256
         semantic_map = np.zeros((size, size), dtype=np.uint8)
         
+        # Add floor region (category 0 is typically background, 1 is floor)
+        # Fill most of the map with floor
+        semantic_map[20:size-20, 20:size-20] = 1  # Floor region
+        
         # Add some basic structure based on room type
         if room_type == "kitchen":
-            # Add some furniture regions
-            semantic_map[100:150, 50:100] = 1  # Refrigerator
-            semantic_map[100:150, 150:200] = 2  # Sink
-            semantic_map[100:150, 200:250] = 3  # Stove
+            # Add furniture regions with proper spacing
+            semantic_map[80:130, 30:80] = 2   # Refrigerator (left wall)
+            semantic_map[80:130, 100:150] = 3  # Sink (center)
+            semantic_map[80:130, 180:230] = 4  # Stove (right wall)
+            semantic_map[150:200, 50:200] = 5  # Counter/island
         elif room_type == "bedroom":
-            semantic_map[80:180, 80:180] = 4  # Bed
-            semantic_map[50:100, 200:250] = 5  # Dresser
+            semantic_map[60:180, 60:180] = 6   # Bed (center)
+            semantic_map[30:80, 200:250] = 7   # Dresser (corner)
+            semantic_map[200:250, 30:80] = 8   # Nightstand
+        elif room_type == "bathroom":
+            semantic_map[80:130, 100:150] = 9   # Sink
+            semantic_map[150:200, 50:100] = 10  # Toilet
+            semantic_map[150:200, 150:200] = 11 # Shower
+        else:
+            # Generic room
+            semantic_map[80:150, 80:150] = 12   # Table
+            semantic_map[180:230, 50:100] = 13  # Chair 1
+            semantic_map[180:230, 150:200] = 14 # Chair 2
         
         return semantic_map
 
@@ -181,14 +254,27 @@ class SemLayoutDiffIntegration:
         
         predictions = []
         category_map = {
-            1: "refrigerator",
-            2: "sink",
-            3: "stove",
-            4: "bed",
-            5: "dresser",
+            1: "floor",  # Floor (background)
+            2: "refrigerator",
+            3: "sink",
+            4: "stove",
+            5: "counter",
+            6: "bed",
+            7: "dresser",
+            8: "nightstand",
+            9: "sink",  # Bathroom sink
+            10: "toilet",
+            11: "shower",
+            12: "table",
+            13: "chair",
+            14: "chair",
         }
         
         for cat_id in unique_categories:
+            # Skip floor/background (category 0 or 1)
+            if int(cat_id) <= 1:
+                continue
+                
             # Find bounding box for this category
             mask = (semantic_map == cat_id)
             coords = np.where(mask)
@@ -200,16 +286,39 @@ class SemLayoutDiffIntegration:
             x_min, x_max = coords[1].min(), coords[1].max()
             
             # Convert to 3D coordinates (normalize to room dimensions)
-            center_x = (x_min + x_max) / 2.0 / width * 5.0  # Assume 5m width
-            center_z = (y_min + y_max) / 2.0 / height * 4.0  # Assume 4m length
+            # SemLayoutDiff uses 0.01 m/pixel scale, so 256 pixels = 2.56m
+            # We'll scale to a standard 5m x 4m room
+            # For stub mode, we assume the semantic map represents a 5m x 4m room
+            room_width_m = 5.0
+            room_length_m = 4.0
+            
+            # Convert pixel coordinates to world coordinates
+            # Map from [0, width] to [-room_width_m/2, room_width_m/2]
+            # Map from [0, height] to [-room_length_m/2, room_length_m/2]
+            center_x = ((x_min + x_max) / 2.0 / width - 0.5) * room_width_m
+            center_z = ((y_min + y_max) / 2.0 / height - 0.5) * room_length_m
             center_y = 0.0
             
-            # Estimate size
-            size_x = (x_max - x_min) / width * 5.0
-            size_z = (y_max - y_min) / height * 4.0
-            size_y = 0.5  # Default height
+            # Estimate size in meters (scale pixel dimensions to room dimensions)
+            size_x = max((x_max - x_min) / width * room_width_m, 0.3)  # Minimum 0.3m
+            size_z = max((y_max - y_min) / height * room_length_m, 0.3)  # Minimum 0.3m
             
+            # Set appropriate height based on category
             category = category_map.get(int(cat_id), "furniture")
+            height_map = {
+                "refrigerator": 1.8,
+                "sink": 0.8,
+                "stove": 0.9,
+                "counter": 0.9,
+                "bed": 0.5,
+                "dresser": 1.0,
+                "nightstand": 0.6,
+                "toilet": 0.4,
+                "shower": 2.0,
+                "table": 0.75,
+                "chair": 0.9,
+            }
+            size_y = height_map.get(category, 0.8)
             
             predictions.append({
                 "category": category,
@@ -267,13 +376,51 @@ class SemLayoutDiffIntegration:
         return objects
 
     def semantic_map_to_base64(self, semantic_map: np.ndarray) -> str:
-        """Convert semantic map to base64 encoded image."""
-        # Normalize to 0-255
-        normalized = ((semantic_map - semantic_map.min()) / 
-                      (semantic_map.max() - semantic_map.min() + 1e-8) * 255).astype(np.uint8)
+        """Convert semantic map to base64 encoded image with color palette."""
+        # Create a color palette for visualization
+        # Use distinct colors for different categories
+        height, width = semantic_map.shape
+        colored_map = np.zeros((height, width, 3), dtype=np.uint8)
+        
+        # Define a color palette (RGB)
+        # Category 0: black (background), Category 1: gray (floor)
+        # Other categories: distinct colors
+        palette = {
+            0: (0, 0, 0),        # Black (background)
+            1: (128, 128, 128),  # Gray (floor)
+            2: (255, 0, 0),      # Red
+            3: (0, 255, 0),      # Green
+            4: (0, 0, 255),      # Blue
+            5: (255, 255, 0),    # Yellow
+            6: (255, 0, 255),    # Magenta
+            7: (0, 255, 255),    # Cyan
+            8: (255, 128, 0),    # Orange
+            9: (128, 0, 255),    # Purple
+            10: (255, 192, 203), # Pink
+            11: (165, 42, 42),   # Brown
+            12: (128, 128, 0),   # Olive
+            13: (0, 128, 128),   # Teal
+            14: (128, 0, 128),   # Maroon
+        }
+        
+        # Apply color palette
+        for cat_id, color in palette.items():
+            mask = (semantic_map == cat_id)
+            colored_map[mask] = color
+        
+        # For categories not in palette, use a hash-based color
+        unique_cats = np.unique(semantic_map)
+        for cat_id in unique_cats:
+            if int(cat_id) not in palette:
+                # Generate a deterministic color based on category ID
+                hue = (int(cat_id) * 137) % 360  # Golden angle for color distribution
+                rgb = colorsys.hsv_to_rgb(hue / 360.0, 0.7, 0.9)
+                color = tuple(int(c * 255) for c in rgb)
+                mask = (semantic_map == cat_id)
+                colored_map[mask] = color
         
         # Create PIL image
-        img = Image.fromarray(normalized, mode='L')
+        img = Image.fromarray(colored_map, mode='RGB')
         
         # Convert to base64
         buffer = io.BytesIO()
