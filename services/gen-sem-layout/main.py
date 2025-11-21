@@ -6,7 +6,9 @@ import os
 import uvicorn
 import numpy as np
 import requests
+import requests
 from sem_layout_inference import generate_semantic_layout, to_layout_response, semantic_to_png_url
+from vibe_encoder import VibeEncoder
 
 app = FastAPI(
     title="3DIX Layout Generation Service",
@@ -21,6 +23,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Initialize Vibe Encoder
+vibe_encoder = VibeEncoder()
 
 
 # ---------------------------
@@ -66,7 +71,7 @@ class LayoutResponse(BaseModel):
 async def health():
     """
     Report the service health.
-    
+
     Returns:
         dict: A mapping with keys "status" (value "ok") and "service" (value "gen-sem-layout").
     """
@@ -77,7 +82,7 @@ async def health():
 async def root():
     """
     Return basic service identity and status for the root HTTP endpoint.
-    
+
     Returns:
         dict: A mapping with keys:
             - "service": the service name ("gen-sem-layout"),
@@ -94,10 +99,10 @@ async def root():
 def stub_objects(seed: int) -> List[SceneObject3D]:
     """
     Generate a deterministic list of three fallback SceneObject3D objects for a given seed.
-    
+
     Parameters:
         seed (int): Integer seed used to deterministically vary randomized attributes (affects the chair's position and orientation).
-    
+
     Returns:
         List[SceneObject3D]: A list containing three SceneObject3D instances (sofa, table, chair). Each object's `metadata` includes the provided `seed` and the generator identifier `"fallback-stub"`.
     """
@@ -137,12 +142,12 @@ def stub_objects(seed: int) -> List[SceneObject3D]:
 async def generate_layout(request: LayoutRequest):
     """
     Generate a semantic room layout from the given request, falling back to a deterministic stub response on any failure.
-    
+
     The function will attempt to fetch and load an architectural mask from request.arch_mask_url (if provided). If the fetch or image processing fails, the mask is ignored. It then calls the semantic layout generator and converts its output to a LayoutResponse. If semantic generation or conversion raises an exception, the function returns a fallback LayoutResponse containing a dummy semantic PNG URL, a deterministic list of scene objects derived from the seed, a world_scale of 0.01, and a default rectangular room_outline.
-    
+
     Parameters:
         request (LayoutRequest): Request containing room_type, optional arch_mask_url, mask_type, vibe_spec, and optional seed.
-    
+
     Returns:
         LayoutResponse: A response containing semantic_map_png_url (when available), a list of SceneObject3D objects, world_scale, and an optional room_outline.
     """
@@ -161,11 +166,15 @@ async def generate_layout(request: LayoutRequest):
             arch_mask = None
 
     try:
+        # Encode vibe
+        vibe_encoding = vibe_encoder.encode_vibe_spec(request.vibe_spec.dict())
+        category_bias = vibe_encoding.get("category_bias")
+
         semantic, instances = generate_semantic_layout(
             room_type=request.room_type,
             arch_mask=arch_mask,
             seed=seed,
-            vibe_bias=None,
+            vibe_bias=category_bias,
         )
         resp = to_layout_response(semantic, instances)
         return LayoutResponse(**resp)

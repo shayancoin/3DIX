@@ -42,12 +42,12 @@ ASSET_INDEX = [
 def _draw_semantic_map(instances: List[Instance], size: int = 256) -> np.ndarray:
     """
     Render a 2D semantic map from scene instances onto a square grid.
-    
+
     Parameters:
         instances (List[Instance]): Sequence of instances, each as (category_id, size3d, position3d, orientation).
             Positions and sizes are interpreted in world units and projected onto the grid.
         size (int): Width and height of the output square semantic map in pixels.
-    
+
     Returns:
         np.ndarray: A 2D uint8 array of shape (size, size) where each element is the semantic category id for that pixel.
     """
@@ -69,10 +69,10 @@ def _draw_semantic_map(instances: List[Instance], size: int = 256) -> np.ndarray
 def semantic_to_png_url(semantic: np.ndarray) -> str:
     """
     Convert a 2D semantic class map into a PNG data URL using the module PALETTE.
-    
+
     Parameters:
         semantic (np.ndarray): 2D array of integer class IDs where each value selects a color from PALETTE.
-    
+
     Returns:
         str: A data URL (`data:image/png;base64,...`) containing a PNG image in which each class ID is rendered with its corresponding RGB color from PALETTE.
     """
@@ -91,20 +91,20 @@ def generate_semantic_layout(
     room_type: str,
     arch_mask: Optional[np.ndarray],
     seed: int,
-    vibe_bias: Optional[np.ndarray],
+    vibe_bias: Optional[dict],
 ) -> Tuple[np.ndarray, List[Instance]]:
     """
     Generate a deterministic semantic occupancy map and a list of scene instances for a simple room layout.
-    
+
     The function produces a 2D semantic map where each pixel encodes a category id and a corresponding list of instances describing placed objects. If an architecture mask is provided, it is overlaid onto the semantic map; the mask is resized to match the semantic shape using nearest-neighbor interpolation when necessary.
-    
+
     Parameters:
         room_type (str): High-level room type hint (e.g., "living_room") used to influence layout priors.
         arch_mask (Optional[np.ndarray]): Optional 2D array of category ids to overlay on the generated semantic map.
             If its shape differs from the generated map, it is resized with nearest-neighbor interpolation before overlay.
         seed (int): Seed for randomness to ensure deterministic outputs.
-        vibe_bias (Optional[np.ndarray]): Optional bias tensor that can influence stochastic placement decisions.
-    
+        vibe_bias (Optional[dict]): Optional bias dictionary that can influence stochastic placement decisions.
+
     Returns:
         semantic (np.ndarray): 2D array (uint8) where each value is a semantic category id for that pixel.
         instances (List[Instance]): List of placed instances; each element is a tuple (category_id, size3d, pos3d, orientation).
@@ -112,12 +112,38 @@ def generate_semantic_layout(
     random.seed(seed)
     np.random.seed(seed)
 
-    # stub instances; in real impl, call SemLayoutDiff and attribute network
-    instances: List[Instance] = [
-        (5, (2.0, 1.0, 1.0), (1.0, 0.0, 2.0), 1),  # sofa
-        (6, (1.0, 0.8, 1.0), (0.0, 0.0, 0.0), 0),  # table
-        (7, (0.6, 0.9, 0.6), (random.uniform(-1, 1), 0.0, random.uniform(-1, 1)), random.choice([0, 1, 2, 3])),
-    ]
+    # Default bias if none provided
+    if vibe_bias is None:
+        vibe_bias = {cat: 0.5 for cat in ["sofa", "table", "chair"]}
+
+    # Convert bias dict to simple lookup if needed, or assume it's a dict
+    # In this stub, we expect vibe_bias to be a dict of category -> probability weight
+
+    instances: List[Instance] = []
+
+    # Probabilistic generation based on bias
+    # Sofa
+    if random.random() < vibe_bias.get("sofa", 0.5) * 1.5: # Boost base prob
+        instances.append((5, (2.0, 1.0, 1.0), (1.0, 0.0, 2.0), 1))
+
+    # Table
+    if random.random() < vibe_bias.get("table", 0.5) * 1.5:
+        instances.append((6, (1.0, 0.8, 1.0), (0.0, 0.0, 0.0), 0))
+
+    # Chairs - number depends on bias
+    chair_bias = vibe_bias.get("chair", 0.5)
+    num_chairs = 0
+    if chair_bias > 0.7:
+        num_chairs = random.randint(2, 4)
+    elif chair_bias > 0.3:
+        num_chairs = random.randint(1, 2)
+
+    for _ in range(num_chairs):
+        instances.append((7, (0.6, 0.9, 0.6), (random.uniform(-1, 1), 0.0, random.uniform(-1, 1)), random.choice([0, 1, 2, 3])))
+
+    # If nothing generated, add at least one chair
+    if not instances:
+        instances.append((7, (0.6, 0.9, 0.6), (0.0, 0.0, 0.0), 0))
 
     semantic = _draw_semantic_map(instances)
 
@@ -134,11 +160,11 @@ def generate_semantic_layout(
 def to_layout_response(semantic: np.ndarray, instances: List[Instance]):
     """
     Builds a layout response dictionary containing a PNG data URL of the semantic map, world scale, scene objects, a room outline, and generator metadata.
-    
+
     Parameters:
         semantic (np.ndarray): 2D semantic map array where integer values represent semantic class ids.
         instances (List[Instance]): List of instances as (category_id, size3d, pos3d, orientation).
-    
+
     Returns:
         dict: A response object with the following keys:
             - semantic_map_png_url (str): PNG data URL generated from `semantic`.
