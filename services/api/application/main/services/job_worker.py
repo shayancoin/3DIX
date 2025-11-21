@@ -58,7 +58,7 @@ class JobWorker:
             async with httpx.AsyncClient(timeout=300.0) as client:
                 try:
                     response = await client.post(
-                        f"{self.ml_service_url}/generate",
+                        f"{self.ml_service_url}/generate-layout",
                         json=request_data,
                     )
                     response.raise_for_status()
@@ -85,12 +85,12 @@ class JobWorker:
             # Format response data
             response_data = {
                 "jobId": str(job_id),
-                "status": ml_response.get("status", "completed"),
+                "status": "completed",
                 "objects": ml_response.get("objects", []),
-                "mask": ml_response.get("mask"),
-                "semanticMap": ml_response.get("semanticMap"),
+                "semantic_map_png_url": ml_response.get("semantic_map_png_url"),
+                "world_scale": ml_response.get("world_scale"),
+                "room_outline": ml_response.get("room_outline"),
                 "metadata": {
-                    **ml_response.get("metadata", {}),
                     "processingTime": time.time() - start_time,
                 },
             }

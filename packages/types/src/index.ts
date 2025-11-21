@@ -81,6 +81,16 @@ export interface LayoutObject {
   };
 }
 
+export interface SceneObject3D {
+  id: string;
+  category: string;
+  position: [number, number, number]; // metres
+  size: [number, number, number];
+  orientation: 0 | 1 | 2 | 3; // multiples of 90 degrees
+  mesh_url?: string;
+  metadata?: Record<string, any>;
+}
+
 // Layout Canvas Types
 export interface CanvasViewport {
   x: number;
@@ -112,35 +122,35 @@ export interface SceneHistoryEntry {
 
 // Layout Request/Response Types
 export interface LayoutRequest {
-  roomId: string;
-  vibeSpec: VibeSpec;
-  constraints?: {
-    roomDimensions?: {
-      width: number;
-      height: number;
-      length: number;
-    };
-    existingObjects?: SceneObject2D[];
-    maskType?: 'none' | 'room_boundary' | 'wall_mask' | 'door_window_mask';
-    maskImage?: string; // base64 encoded image
-    assetQuality?: 'low' | 'medium' | 'high'; // Quality level for 3D asset retrieval
-  };
+  room_type: RoomType;
+  arch_mask_url?: string;
+  mask_type?: 'none' | 'floor' | 'arch';
+  vibe_spec: VibeSpec;
+  seed?: number;
 }
 
 export interface LayoutResponse {
-  jobId: string;
-  status: GenerationJobStatus;
-  mask?: string; // base64 or url
-  objects: LayoutObject[];
-  semanticMap?: string; // base64 encoded semantic segmentation map
-  metadata?: {
-    processingTime?: number;
-    modelVersion?: string;
-    [key: string]: any;
-  };
+  semantic_map_png_url?: string;
+  objects: SceneObject3D[];
+  world_scale: number; // meters per pixel or similar
+  room_outline?: [number, number][];
+  metadata?: Record<string, any>;
 }
 
-export type GenerationJobStatus = 'queued' | 'running' | 'completed' | 'failed';
+export type GenerationJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface LayoutJobStatusResponse {
+  job_id: string | number;
+  status: GenerationJobStatus;
+  result: LayoutResponse | null;
+  error: string | null;
+  progress: number | null;
+  progress_message: string | null;
+  created_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  updated_at?: string | null;
+}
 
 // Export all types
 

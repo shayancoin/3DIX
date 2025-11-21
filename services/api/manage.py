@@ -7,6 +7,14 @@ from application.main.config import settings
 
 
 def get_application():
+    """
+    Create and configure the FastAPI application for the service.
+    
+    The returned application is initialized with metadata from settings, has the project's routes included, and applies permissive CORS allowing all origins, credentials, methods, and headers.
+    
+    Returns:
+        FastAPI: Configured FastAPI application instance.
+    """
     _app = FastAPI(title=settings.API_NAME,
                    description=settings.API_DESCRIPTION,
                    version=settings.API_VERSION)

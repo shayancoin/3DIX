@@ -1,0 +1,60 @@
+# 3DIX Full Stack Development Plan
+
+- [x] Step 0: Environment Normalization & End-to-End Dev Loop <!-- id: 0 -->
+    - [x] Validate Turborepo & workspaces <!-- id: 1 -->
+    - [x] Configure global dev scripts in root `package.json` <!-- id: 2 -->
+    - [x] Configure `infra/docker-compose.dev.yml` for API <!-- id: 3 -->
+    - [x] Wire Web to API via environment variables <!-- id: 4 -->
+    - [x] Verify full dev loop (Web + API) <!-- id: 5 -->
+- [x] Step 1: Projects & Rooms Domain (UI + Persistence) <!-- id: 6 -->
+    - [x] Design DB schema for Projects and Rooms <!-- id: 7 -->
+    - [x] Implement ORM models and migrations <!-- id: 8 -->
+    - [x] Create API routes for Projects and Rooms <!-- id: 9 -->
+    - [x] Build Frontend pages for Projects and Rooms management <!-- id: 10 -->
+- [ ] Step 2: Design Surface (2D Layout Canvas + Vibe Panel) <!-- id: 11 -->
+    - [ ] Define client-side types (`RoomType`, `VibeSpec`, `SceneObject2D`) <!-- id: 12 -->
+    - [ ] Implement 2D Layout Canvas using `react-konva` <!-- id: 13 -->
+    - [ ] Build Vibe Panel (Prompt, Tags, Sliders) <!-- id: 14 -->
+    - [ ] Implement Scene History stub <!-- id: 15 -->
+- [ ] Step 3: Job System API (Stubbed) + Progress UI <!-- id: 16 -->
+    - [ ] Create `layout_jobs` DB table <!-- id: 17 -->
+    - [ ] Implement Job API endpoints (`POST`, `GET`) <!-- id: 18 -->
+    - [ ] Create background stub worker <!-- id: 19 -->
+    - [ ] Wire Frontend to Job API with polling and visualization <!-- id: 20 -->
+- [ ] Step 4: ML Microservice Skeleton for Layout Generation <!-- id: 21 -->
+    - [ ] Define ML service contract (`LayoutRequest`, `LayoutResponse`) <!-- id: 22 -->
+    - [ ] Create FastAPI ML stub (`services/gen-sem-layout`) <!-- id: 23 -->
+    - [ ] Integrate API service with ML service <!-- id: 24 -->
+    - [ ] Update Web to use real API for layout generation <!-- id: 25 -->
+- [ ] Step 5: Real SemLayoutDiff Inference <!-- id: 26 -->
+    - [ ] Integrate SemLayoutDiff model in `services/gen-sem-layout` <!-- id: 27 -->
+    - [ ] Map SemLayoutDiff outputs to `LayoutResponse` <!-- id: 28 -->
+    - [ ] Visualize 2D semantic maps and bounding boxes in Web <!-- id: 29 -->
+    - [ ] Add UI controls for conditioning (mask types) <!-- id: 30 -->
+- [ ] Step 6: 3D Viewer with React Three Fiber <!-- id: 31 -->
+    - [ ] Implement `LayoutScene3D` component <!-- id: 32 -->
+    - [ ] Sync 2D and 3D views (selection, highlighting) <!-- id: 33 -->
+- [ ] Step 7: Asset Retrieval and Mesh-based Scenes <!-- id: 34 -->
+    - [ ] Prepare Asset Library (3D-FUTURE glTFs) <!-- id: 35 -->
+    - [ ] Implement Asset Retrieval logic in ML service <!-- id: 36 -->
+    - [ ] Implement Web Mesh Loading with quality toggle <!-- id: 37 -->
+- [ ] Step 8: Vibe-coding Semantics <!-- id: 38 -->
+    - [ ] Implement Vibe Encoder (Text/Image to latent) <!-- id: 39 -->
+    - [ ] Implement Category Bias Learning <!-- id: 40 -->
+    - [ ] Wire Vibe Panel to ML generation <!-- id: 41 -->
+- [ ] Step 9: SAM-3D Integration for Custom Furniture <!-- id: 42 -->
+    - [ ] Implement Object Reconstruction Service (`gen-sam3d-objects`) <!-- id: 43 -->
+    - [ ] Add API endpoint for custom objects <!-- id: 44 -->
+    - [ ] Build Frontend flow for object replacement <!-- id: 45 -->
+- [ ] Step 10: Domain-Specific Flows <!-- id: 46 -->
+    - [ ] Define Configuration Schemas for Room Types <!-- id: 47 -->
+    - [ ] Implement Constraint Solver (Post-processing) <!-- id: 48 -->
+    - [ ] Build UI wizards for specific room types <!-- id: 49 -->
+- [ ] Step 11: SaaS Hardening <!-- id: 50 -->
+    - [ ] Implement Auth and Tenant Model <!-- id: 51 -->
+    - [ ] Integrate Billing (Stripe) and Quotas <!-- id: 52 -->
+    - [ ] Implement Usage Logging and Analytics UI <!-- id: 53 -->
+- [ ] Step 12: Deployment, Scaling & Performance <!-- id: 54 -->
+    - [ ] Deploy Web App <!-- id: 55 -->
+    - [ ] Deploy Backend and ML Services (GPU) <!-- id: 56 -->
+    - [ ] Implement Observability and Performance Tuning <!-- id: 57 -->

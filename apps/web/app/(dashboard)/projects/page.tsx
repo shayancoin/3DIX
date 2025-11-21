@@ -15,6 +15,13 @@ interface Project {
   updated_at: string;
 }
 
+/**
+ * Renders the Projects page: fetches and displays a list of projects, and provides UI to view or create projects.
+ *
+ * Fetches projects from the API (uses NEXT_PUBLIC_API_BASE_URL with a localhost fallback), manages loading and error states, and renders either a loading indicator, an error message, an empty-state call-to-action, or a grid of project cards linking to each project's detail page.
+ *
+ * @returns The JSX element for the Projects page (list view, loading state, or error state).
+ */
 export default function ProjectsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);

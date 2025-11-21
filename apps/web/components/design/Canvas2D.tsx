@@ -11,12 +11,24 @@ interface Canvas2DProps {
     roomDimensions: { width: number; length: number }; // in meters
     objects: SceneObject2D[];
     onObjectUpdate: (id: string, newProps: Partial<SceneObject2D>) => void;
+    selectedObjectId?: string | null;
+    onSelectObject?: (id: string | null) => void;
 }
 
 const GRID_SIZE = 50; // pixels per meter
 const STAGE_PADDING = 50;
 
-export function Canvas2D({ width, height, roomDimensions, objects, onObjectUpdate }: Canvas2DProps) {
+/**
+ * Render a pannable, zoomable 2D room canvas with a grid, room boundary, and draggable scene objects.
+ *
+ * @param width - Stage width in pixels
+ * @param height - Stage height in pixels
+ * @param roomDimensions - Room size in meters (`width` and `length`) used to compute pixel dimensions
+ * @param objects - Array of scene objects to render and allow dragging for position updates
+ * @param onObjectUpdate - Callback invoked with an object's `id` and partial updated properties (positions are reported in meters) when an object is moved
+ * @returns The React element for the interactive 2D canvas
+ */
+export function Canvas2D({ width, height, roomDimensions, objects, onObjectUpdate, selectedObjectId, onSelectObject }: Canvas2DProps) {
     const stageRef = useRef<any>(null);
     const [scale, setScale] = useState(1);
     const [position, setPosition] = useState({ x: STAGE_PADDING, y: STAGE_PADDING });
@@ -82,7 +94,9 @@ export function Canvas2D({ width, height, roomDimensions, objects, onObjectUpdat
                         <DraggableObject
                             key={obj.id}
                             obj={obj}
+                            selected={selectedObjectId === obj.id}
                             onUpdate={onObjectUpdate}
+                            onSelect={onSelectObject}
                         />
                     ))}
                 </Layer>
@@ -121,7 +135,7 @@ const Grid = ({ width, height }: { width: number; height: number }) => {
     return <Group>{lines}</Group>;
 };
 
-const DraggableObject = ({ obj, onUpdate }: { obj: SceneObject2D; onUpdate: (id: string, newProps: Partial<SceneObject2D>) => void }) => {
+const DraggableObject = ({ obj, onUpdate, selected, onSelect }: { obj: SceneObject2D; onUpdate: (id: string, newProps: Partial<SceneObject2D>) => void; selected?: boolean; onSelect?: (id: string) => void; }) => {
     const shapeRef = useRef<any>(null);
     const trRef = useRef<any>(null);
 
@@ -137,6 +151,7 @@ const DraggableObject = ({ obj, onUpdate }: { obj: SceneObject2D; onUpdate: (id:
             y={yPx}
             rotation={obj.rotation}
             draggable
+            onClick={() => onSelect?.(obj.id)}
             onDragEnd={(e) => {
                 onUpdate(obj.id, {
                     position: {
@@ -150,8 +165,8 @@ const DraggableObject = ({ obj, onUpdate }: { obj: SceneObject2D; onUpdate: (id:
                 width={widthPx}
                 height={depthPx}
                 fill={obj.color || '#4f46e5'}
-                stroke="black"
-                strokeWidth={2}
+                stroke={selected ? '#2563eb' : 'black'}
+                strokeWidth={selected ? 3 : 2}
                 offsetX={widthPx / 2}
                 offsetY={depthPx / 2}
                 cornerRadius={4}

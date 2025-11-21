@@ -7,16 +7,36 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { X, Wand2 } from 'lucide-react';
-import { VibeSpec } from '@3dix/types';
+import { MaskControls, MaskControlsState } from './MaskControls';
+
+export interface VibeFormState {
+    prompt: string;
+    keywords: string[];
+    style_sliders: Record<string, number>;
+}
 
 interface VibePanelProps {
-    vibe: VibeSpec;
-    onVibeUpdate: (newVibe: VibeSpec) => void;
+    vibe: VibeFormState;
+    onVibeUpdate: (newVibe: VibeFormState) => void;
+    maskControls: MaskControlsState;
+    onMaskChange: (value: MaskControlsState) => void;
     onGenerate: () => void;
     isGenerating: boolean;
 }
 
-export function VibePanel({ vibe, onVibeUpdate, onGenerate, isGenerating }: VibePanelProps) {
+/**
+ * Render a control panel for editing a VibeSpec and triggering layout generation.
+ *
+ * Provides controls to edit the vibe prompt, add/remove keyword tags, adjust style sliders
+ * (minimalism, vintage, colorful), and trigger generation.
+ *
+ * @param vibe - Current VibeSpec state shown and edited by the panel
+ * @param onVibeUpdate - Callback invoked with an updated VibeSpec when the user changes prompt, keywords, or sliders
+ * @param onGenerate - Callback invoked when the user clicks the generate button
+ * @param isGenerating - When true, disables the generate button and shows progress text
+ * @returns The React element for the VibePanel UI
+ */
+export function VibePanel({ vibe, onVibeUpdate, maskControls, onMaskChange, onGenerate, isGenerating }: VibePanelProps) {
     const [keywordInput, setKeywordInput] = useState('');
 
     const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -142,6 +162,8 @@ export function VibePanel({ vibe, onVibeUpdate, onGenerate, isGenerating }: Vibe
                     </div>
                 </div>
             </div>
+
+            <MaskControls value={maskControls} onChange={onMaskChange} />
 
             <div className="mt-auto">
                 <Button

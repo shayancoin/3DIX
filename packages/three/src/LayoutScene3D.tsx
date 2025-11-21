@@ -1,240 +1,195 @@
-import React, { useRef, useState, useCallback } from 'react';
-import { useFrame, ThreeEvent } from '@react-three/fiber';
-import { Box, Grid, OrbitControls, PerspectiveCamera, Text } from '@react-three/drei';
-import { LayoutObject, Point3D } from '@3dix/types';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Canvas, ThreeEvent, useFrame } from '@react-three/fiber';
+import { Grid, OrbitControls, Text, useGLTF } from '@react-three/drei';
+import { SceneObject3D } from '@3dix/types';
 import * as THREE from 'three';
-import { MeshLoader } from './MeshLoader';
 
-interface LayoutScene3DProps {
-  objects: LayoutObject[];
-  roomWidth?: number;
-  roomLength?: number;
-  roomHeight?: number;
-  selectedObjectId?: string;
-  onObjectClick?: (objectId: string | undefined) => void;
-  cameraPosition?: [number, number, number];
-  showGrid?: boolean;
-  showLabels?: boolean;
-  meshQuality?: 'low' | 'medium' | 'high';
-  useMeshes?: boolean;
-}
+export type LayoutScene3DProps = {
+  objects: SceneObject3D[];
+  roomOutline?: [number, number][];
+  selectedId?: string;
+  onSelect?: (id: string | null) => void;
+  quality?: 'low' | 'medium' | 'high';
+};
 
-// Category color mapping (matching 2D canvas)
 const CATEGORY_COLORS: Record<string, string> = {
-  refrigerator: '#4A90E2',
-  sink: '#50C878',
-  cabinet: '#8B4513',
-  stove: '#FF6B6B',
-  dishwasher: '#FFD93D',
-  counter: '#A0A0A0',
+  sofa: '#20B2AA',
   table: '#D2691E',
   chair: '#9370DB',
   bed: '#FF69B4',
-  sofa: '#20B2AA',
-  toilet: '#87CEEB',
-  shower: '#4682B4',
-  dresser: '#CD853F',
-  nightstand: '#DDA0DD',
   default: '#6C757D',
 };
 
-function LayoutObject3D({
+function ObjectMesh({
   object,
-  isSelected,
+  selected,
   onClick,
-  useMesh,
-  meshQuality,
+  quality,
 }: {
-  object: LayoutObject;
-  isSelected: boolean;
+  object: SceneObject3D;
+  selected: boolean;
   onClick: (e: ThreeEvent<MouseEvent>) => void;
-  useMesh?: boolean;
-  meshQuality?: 'low' | 'medium' | 'high';
+  quality: 'low' | 'medium' | 'high';
 }) {
-  const meshRef = useRef<THREE.Mesh | THREE.Group>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
-
-  // Animate selected objects
   useFrame((state) => {
-    if (meshRef.current && isSelected) {
-      if ('rotation' in meshRef.current) {
-        meshRef.current.rotation.y = Math.sin(state.clock.elapsedTime) * 0.1;
-      }
+    if (meshRef.current && selected) {
+      meshRef.current.rotation.y = Math.sin(state.clock.elapsedTime) * 0.1;
     }
   });
 
-  const color = object.metadata?.color || CATEGORY_COLORS[object.category] || CATEGORY_COLORS.default;
+  const color = CATEGORY_COLORS[object.category] || CATEGORY_COLORS.default;
   const [x, y, z] = object.position;
-  const [width, height, depth] = object.size;
-  const hasAsset = (object.metadata?.assetUrl || object.metadata?.isCustom) && useMesh;
+  const [w, h, d] = object.size;
+  const rotationY = (object.orientation || 0) * (Math.PI / 2);
 
   return (
     <group
-      position={[x, y + height / 2, z]}
-      rotation={[0, object.orientation, 0]}
+      position={[x, y + h / 2, z]}
+      rotation={[0, rotationY, 0]}
       onClick={onClick}
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
     >
-      {hasAsset ? (
-        <group ref={meshRef as any}>
-          <MeshLoader object={object} quality={meshQuality} />
-          {/* Highlight overlay for selected objects */}
-          {isSelected && (
-            <mesh>
-              <boxGeometry args={[width * 1.05, height * 1.05, depth * 1.05]} />
-              <meshStandardMaterial
-                color="#3B82F6"
-                opacity={0.2}
-                transparent
-                wireframe
-              />
-            </mesh>
-          )}
-        </group>
-      ) : (
-        <mesh ref={meshRef as any}>
-          <boxGeometry args={[width, height, depth]} />
-          <meshStandardMaterial
-            color={isSelected ? '#3B82F6' : hovered ? color : color}
-            opacity={isSelected ? 0.9 : 0.7}
-            transparent
-            emissive={isSelected ? '#3B82F6' : '#000000'}
-            emissiveIntensity={isSelected ? 0.3 : 0}
-          />
-        </mesh>
-      )}
-      {/* Wireframe outline for selected objects */}
-      {isSelected && !hasAsset && (
+      <mesh ref={meshRef}>
+        <boxGeometry args={[w, h, d]} />
+        <meshStandardMaterial
+          color={selected ? '#3B82F6' : color}
+          opacity={hovered || selected ? 0.9 : 0.7}
+          transparent
+          emissive={selected ? '#3B82F6' : '#000000'}
+          emissiveIntensity={selected ? 0.3 : 0}
+          visible={quality === 'low' || !object.mesh_url}
+        />
+      </mesh>
+      {selected && (
         <lineSegments>
-          <edgesGeometry args={[new THREE.BoxGeometry(width, height, depth)]} />
-          <lineBasicMaterial color="#3B82F6" linewidth={3} />
+          <edgesGeometry args={[new THREE.BoxGeometry(w * 1.05, h * 1.05, d * 1.05)]} />
+          <lineBasicMaterial color="#3B82F6" />
         </lineSegments>
       )}
-      {/* Label */}
-      {object.category && (
-        <Text
-          position={[0, height / 2 + 0.2, 0]}
-          fontSize={0.2}
-          color="#000000"
-          anchorX="center"
-          anchorY="middle"
-        >
-          {object.category}
-        </Text>
+      {quality !== 'low' && object.mesh_url && (
+        <AssetMesh meshUrl={object.mesh_url} targetSize={[w, h, d]} />
       )}
+      <Text position={[0, h / 2 + 0.15, 0]} fontSize={0.18} color="#111">
+        {object.category}
+      </Text>
     </group>
   );
 }
 
-export function LayoutScene3D({
-  objects,
-  roomWidth = 5,
-  roomLength = 4,
-  roomHeight = 2.5,
-  selectedObjectId,
-  onObjectClick,
-  cameraPosition = [8, 6, 8],
-  showGrid = true,
-  showLabels = true,
-  meshQuality = 'high',
-  useMeshes = true,
-}: LayoutScene3DProps) {
-  const handleObjectClick = useCallback(
-    (e: ThreeEvent<MouseEvent>, objectId: string) => {
-      e.stopPropagation();
-      onObjectClick?.(objectId === selectedObjectId ? undefined : objectId);
-    },
-    [selectedObjectId, onObjectClick]
-  );
+function AssetMesh({ meshUrl, targetSize }: { meshUrl: string; targetSize: [number, number, number] }) {
+  const gltf = useGLTF(meshUrl, true);
+  const scene = useMemo(() => gltf.scene.clone(true), [gltf.scene]);
 
-  const handleBackgroundClick = useCallback(
-    (e: ThreeEvent<MouseEvent>) => {
-      if (e.object === e.eventObject) {
-        onObjectClick?.(undefined);
-      }
-    },
-    [onObjectClick]
-  );
+  // Fit the mesh to target size
+  useMemo(() => {
+    const box = new THREE.Box3().setFromObject(scene);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    const [w, h, d] = targetSize;
+    const scale = new THREE.Vector3(
+      size.x ? w / size.x : 1,
+      size.y ? h / size.y : 1,
+      size.z ? d / size.z : 1
+    );
+    scene.scale.copy(scale);
+    scene.position.sub(center);
+    scene.position.y += size.y / 2;
+  }, [scene, targetSize]);
+
+  return <primitive object={scene} />;
+}
+useGLTF.preload('https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF-Binary/Box.glb');
+
+function SceneContents({
+  objects,
+  roomOutline,
+  selectedId,
+  onSelect,
+  quality = 'high',
+}: LayoutScene3DProps) {
+  const bounds = useMemo(() => {
+    if (!roomOutline || roomOutline.length === 0) {
+      return { minX: 0, maxX: 5, minZ: 0, maxZ: 4 };
+    }
+    const xs = roomOutline.map((p) => p[0]);
+    const zs = roomOutline.map((p) => p[1]);
+    return {
+      minX: Math.min(...xs),
+      maxX: Math.max(...xs),
+      minZ: Math.min(...zs),
+      maxZ: Math.max(...zs),
+    };
+  }, [roomOutline]);
+
+  const width = bounds.maxX - bounds.minX || 5;
+  const length = bounds.maxZ - bounds.minZ || 4;
+  const center: [number, number, number] = [
+    bounds.minX + width / 2,
+    0,
+    bounds.minZ + length / 2,
+  ];
+
+  const handleBackgroundClick = useCallback(() => {
+    onSelect?.(null);
+  }, [onSelect]);
 
   return (
     <>
-      {/* Camera */}
-      <PerspectiveCamera makeDefault position={cameraPosition} fov={50} />
-      <OrbitControls
-        enablePan={true}
-        enableZoom={true}
-        enableRotate={true}
-        minDistance={3}
-        maxDistance={20}
-        target={[roomWidth / 2, 0, roomLength / 2]}
+      <OrbitControls target={center} />
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[8, 10, 6]} intensity={0.9} />
+      <Grid
+        infiniteGrid
+        cellSize={0.5}
+        cellThickness={0.4}
+        sectionSize={2}
+        sectionThickness={1}
+        fadeDistance={20}
+        fadeStrength={1}
       />
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[center[0], 0, center[2]]}
+        onClick={handleBackgroundClick}
+      >
+        <planeGeometry args={[width || 5, length || 4]} />
+        <meshStandardMaterial color="#f8fafc" opacity={0.4} transparent />
+      </mesh>
 
-      {/* Lighting */}
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 5]} intensity={1} castShadow />
-      <directionalLight position={[-10, 10, -5]} intensity={0.5} />
-
-      {/* Grid */}
-      {showGrid && (
-        <Grid
-          infiniteGrid
-          cellSize={1}
-          cellThickness={0.5}
-          cellColor="#E0E0E0"
-          sectionSize={5}
-          sectionThickness={1}
-          sectionColor="#CCCCCC"
-          fadeDistance={25}
-          fadeStrength={1}
-        />
-      )}
-
-      {/* Room boundary visualization */}
-      <group onClick={handleBackgroundClick}>
-        {/* Floor */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[roomWidth / 2, 0, roomLength / 2]} receiveShadow>
-          <planeGeometry args={[roomWidth, roomLength]} />
-          <meshStandardMaterial color="#F5F5F5" opacity={0.3} transparent />
-        </mesh>
-
-        {/* Walls (optional, can be enabled) */}
-        {/* Back wall */}
-        <mesh position={[roomWidth / 2, roomHeight / 2, 0]} receiveShadow>
-          <planeGeometry args={[roomWidth, roomHeight]} />
-          <meshStandardMaterial color="#E0E0E0" opacity={0.2} transparent side={THREE.DoubleSide} />
-        </mesh>
-        {/* Left wall */}
-        <mesh rotation={[0, Math.PI / 2, 0]} position={[0, roomHeight / 2, roomLength / 2]} receiveShadow>
-          <planeGeometry args={[roomLength, roomHeight]} />
-          <meshStandardMaterial color="#E0E0E0" opacity={0.2} transparent side={THREE.DoubleSide} />
-        </mesh>
-        {/* Right wall */}
-        <mesh rotation={[0, -Math.PI / 2, 0]} position={[roomWidth, roomHeight / 2, roomLength / 2]} receiveShadow>
-          <planeGeometry args={[roomLength, roomHeight]} />
-          <meshStandardMaterial color="#E0E0E0" opacity={0.2} transparent side={THREE.DoubleSide} />
-        </mesh>
-        {/* Front wall */}
-        <mesh rotation={[0, Math.PI, 0]} position={[roomWidth / 2, roomHeight / 2, roomLength]} receiveShadow>
-          <planeGeometry args={[roomWidth, roomHeight]} />
-          <meshStandardMaterial color="#E0E0E0" opacity={0.2} transparent side={THREE.DoubleSide} />
-        </mesh>
-      </group>
-
-      {/* Layout Objects */}
       {objects.map((obj) => (
-        <LayoutObject3D
+        <ObjectMesh
           key={obj.id}
           object={obj}
-          isSelected={obj.id === selectedObjectId}
-          onClick={(e) => handleObjectClick(e, obj.id)}
-          useMesh={useMeshes}
-          meshQuality={meshQuality}
+          selected={obj.id === selectedId}
+          quality={quality}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect?.(obj.id === selectedId ? null : obj.id);
+          }}
         />
       ))}
-
-      {/* Axes helper (optional, for debugging) */}
-      <axesHelper args={[2]} />
     </>
+  );
+}
+
+export function LayoutScene3D(props: LayoutScene3DProps) {
+  const { objects } = props;
+  if (!objects || objects.length === 0) {
+    return (
+      <div className="w-full h-full bg-slate-100 flex items-center justify-center text-sm text-muted-foreground">
+        No objects to render
+      </div>
+    );
+  }
+
+  return (
+    <Canvas shadows camera={{ position: [8, 6, 8], fov: 50 }}>
+      <SceneContents {...props} />
+    </Canvas>
   );
 }

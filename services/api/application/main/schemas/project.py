@@ -4,6 +4,12 @@ from pydantic import BaseModel, Field
 from uuid import uuid4
 
 def generate_id():
+    """
+    Create a new unique identifier.
+    
+    Returns:
+        str: String representation of a newly generated UUID4.
+    """
     return str(uuid4())
 
 class ProjectBase(BaseModel):

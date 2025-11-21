@@ -9,6 +9,15 @@ import { Label } from '@/components/ui/label';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
+/**
+ * Render a page with a form to create a new project.
+ *
+ * The form collects a project name and optional description, submits them to the configured API,
+ * displays loading and error states during submission, and navigates to the newly created project's
+ * page on success.
+ *
+ * @returns The React element that renders the new-project creation UI, including back navigation.
+ */
 export default function NewProjectPage() {
   const router = useRouter();
   const [name, setName] = useState('');

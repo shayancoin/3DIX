@@ -6,6 +6,17 @@ class LoggerInstance(object):
 
 class IncludeAPIRouter(object):
     def __new__(cls):
+        """
+        Create and return a FastAPI APIRouter configured with the application's sub-routers.
+        
+        Includes and registers the health check, hello world, response manager, question classification,
+        image classification, vibe, projects, jobs, internal jobs, and custom objects routers under their
+        respective URL prefixes and tags (e.g., '/api/v1', '/api/v1/vibe', '/api/v1/projects', '/api/v1/jobs',
+        '/api/v1/internal/jobs', '/api/v1/custom-objects').
+        
+        Returns:
+            APIRouter: An APIRouter instance with all listed sub-routers included and tagged.
+        """
         from application.main.routers.health_checks import router as router_health_check
         from application.main.routers.hello_world import router as router_hello_world
         from application.main.routers.api_response import router as response_manager_test

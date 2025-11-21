@@ -1,8 +1,9 @@
 import { desc, and, eq, isNull } from 'drizzle-orm';
 import { db } from './drizzle';
-import { activityLogs, teamMembers, teams, users, projects, rooms, ProjectWithRooms, RoomWithProject, NewProject, NewRoom, layoutJobs, LayoutJob, NewLayoutJob, JobStatus } from './schema';
+import { activityLogs, teamMembers, teams, users, projects, rooms, ProjectWithRooms, RoomWithProject, NewProject, NewRoom, layoutJobs, LayoutJob, NewLayoutJob, JobStatus as JobStatusEnum } from './schema';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/session';
+import { assertValidTransition, JobStatus } from '@/lib/jobs/stateMachine';
 
 export async function getUser() {
   const sessionCookie = (await cookies()).get('session');
@@ -243,6 +244,24 @@ export async function getRoom(roomId: number, projectId: number): Promise<RoomWi
   };
 }
 
+export async function getRoomWithProjectByRoomId(roomId: number): Promise<RoomWithProject | null> {
+  const room = await db.query.rooms.findFirst({
+    where: and(eq(rooms.id, roomId), isNull(rooms.deletedAt)),
+    with: {
+      project: true,
+    },
+  });
+
+  if (!room || !room.project || room.project.deletedAt) {
+    return null;
+  }
+
+  return {
+    ...room,
+    project: room.project,
+  };
+}
+
 export async function getRoomsForProject(projectId: number) {
   return await db
     .select()
@@ -296,10 +315,42 @@ export async function deleteRoom(roomId: number, projectId: number) {
 
 // Layout Jobs Queries
 
-export async function createLayoutJob(data: NewLayoutJob) {
+export type CreateLayoutJobInput = {
+  roomId: number;
+  requestData: unknown;
+  status?: JobStatus;
+  progress?: number | null;
+  progressMessage?: string | null;
+};
+
+export type UpdateLayoutJobInput = Partial<Pick<NewLayoutJob,
+  'requestData' |
+  'responseData' |
+  'errorMessage' |
+  'errorDetails' |
+  'workerId' |
+  'retryCount'
+>> & {
+  status?: JobStatus;
+  progress?: number | null;
+  progressMessage?: string | null;
+  startedAt?: Date | null;
+  completedAt?: Date | null;
+};
+
+export async function createLayoutJob(data: CreateLayoutJobInput) {
+  const now = new Date();
   const [job] = await db
     .insert(layoutJobs)
-    .values(data)
+    .values({
+      roomId: data.roomId,
+      requestData: data.requestData,
+      status: (data.status ?? JobStatusEnum.QUEUED) as JobStatusEnum,
+      progress: data.progress ?? 0,
+      progressMessage: data.progressMessage ?? 'Queued',
+      createdAt: now,
+      updatedAt: now,
+    })
     .returning();
 
   return job;
@@ -334,24 +385,34 @@ export async function getLatestLayoutJobForRoom(roomId: number) {
   return job || null;
 }
 
-export async function updateLayoutJob(jobId: number, updates: Partial<NewLayoutJob>) {
+export async function updateLayoutJob(jobId: number, updates: UpdateLayoutJobInput) {
+  const existing = await getLayoutJob(jobId);
+  if (!existing) {
+    return null;
+  }
+
+  if (updates.status) {
+    assertValidTransition(existing.status as JobStatus, updates.status);
+  }
+
   const [job] = await db
     .update(layoutJobs)
     .set({
       ...updates,
+      status: updates.status ?? existing.status,
       updatedAt: new Date(),
     })
     .where(eq(layoutJobs.id, jobId))
     .returning();
 
-  return job;
+  return job || null;
 }
 
 export async function getQueuedJobs(limit: number = 10) {
   return await db
     .select()
     .from(layoutJobs)
-    .where(eq(layoutJobs.status, JobStatus.QUEUED))
+    .where(eq(layoutJobs.status, JobStatusEnum.QUEUED))
     .orderBy(layoutJobs.createdAt)
     .limit(limit);
 }
@@ -360,5 +421,5 @@ export async function getRunningJobs() {
   return await db
     .select()
     .from(layoutJobs)
-    .where(eq(layoutJobs.status, JobStatus.RUNNING));
+    .where(eq(layoutJobs.status, JobStatusEnum.RUNNING));
 }

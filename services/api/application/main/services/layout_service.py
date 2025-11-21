@@ -29,7 +29,7 @@ class LayoutService:
         async with httpx.AsyncClient(timeout=300.0) as client:
             try:
                 response = await client.post(
-                    f"{self.ml_service_url}/generate",
+                    f"{self.ml_service_url}/generate-layout",
                     json=request_data,
                 )
                 response.raise_for_status()

@@ -15,6 +15,16 @@ interface SceneHistoryProps {
     onRestore: (id: string) => void;
 }
 
+/**
+ * Render a scrollable history list with per-item restore actions.
+ *
+ * Displays a header, an empty-state message when no entries exist, and a list of history
+ * items where each item shows a truncated description and a restore button.
+ *
+ * @param history - Array of history entries to display; each entry must include `id`, `timestamp`, and `description`.
+ * @param onRestore - Callback invoked with the entry `id` when the user clicks the restore button for that entry.
+ * @returns A React element representing the scene history UI.
+ */
 export function SceneHistory({ history, onRestore }: SceneHistoryProps) {
     return (
         <div className="border-b p-4">
