@@ -17,3 +17,5 @@ python-multipart
 pydantic>=2.0
 pydantic-settings
 httpx
+asyncpg
+sqlalchemy[asyncio]
