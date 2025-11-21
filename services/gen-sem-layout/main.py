@@ -9,6 +9,8 @@ import requests
 import requests
 from sem_layout_inference import generate_semantic_layout, to_layout_response, semantic_to_png_url
 from vibe_encoder import VibeEncoder
+from constraint_solver import ConstraintSolver, LayoutObject as ConstraintLayoutObject
+from room_configs import get_room_type_config
 
 app = FastAPI(
     title="3DIX Layout Generation Service",
