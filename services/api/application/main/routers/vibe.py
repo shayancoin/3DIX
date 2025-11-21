@@ -4,7 +4,7 @@ from pydantic import BaseModel
 router = APIRouter()
 
 class VibeEchoRequest(BaseModel):
-    message: string
+    message: str
 
 @router.post("/echo")
 async def echo(request: VibeEchoRequest):

@@ -2,7 +2,8 @@
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseSettings, Field, BaseModel
+from pydantic import Field, BaseModel
+from pydantic_settings import BaseSettings
 
 
 class AppConfig(BaseModel):

@@ -3,11 +3,13 @@ version: '3.8'
 services:
   api:
     build:
-      context: ../..
+      context: ..
       dockerfile: infra/docker/Dockerfile.api
     ports:
       - "8000:8000"
     volumes:
-      - ../../services/api:/app
+      - ../services/api:/app
+    env_file:
+      - ../services/api/.env.dev
     environment:
-      - 3DIX_ENV=development
+      - ENV_STATE=dev
