@@ -8,6 +8,7 @@ import {
   jsonb,
   boolean,
   real,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -163,13 +164,16 @@ export const projects = pgTable('projects', {
     .notNull()
     .references(() => teams.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
+  slug: varchar('slug', { length: 255 }).notNull(),
   description: text('description'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   deletedAt: timestamp('deleted_at'),
   createdBy: integer('created_by')
     .references(() => users.id),
-});
+}, (table) => ({
+  teamSlugUnique: uniqueIndex('projects_team_slug_unique').on(table.teamId, table.slug),
+}));
 
 export const rooms = pgTable('rooms', {
   id: serial('id').primaryKey(),
@@ -188,6 +192,7 @@ export const rooms = pgTable('rooms', {
   vibeSpec: jsonb('vibe_spec'), // Vibe specification (prompt, tags, etc.)
   // Metadata
   thumbnailUrl: text('thumbnail_url'),
+  floorplanUrl: text('floorplan_url'),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

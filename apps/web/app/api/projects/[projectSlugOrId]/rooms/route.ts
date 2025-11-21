@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTeamForUser, getRoomsForProject, createRoom } from '@/lib/db/queries';
+import { getTeamForUser, getRoomsForProject, createRoom, getProjectByIdentifier } from '@/lib/db/queries';
 import { getUser } from '@/lib/db/queries';
-import { getProjectWithRooms } from '@/lib/db/queries';
 import { RoomType } from '@/lib/db/schema';
 import { z } from 'zod';
 
@@ -11,19 +10,15 @@ const createRoomSchema = z.object({
   width: z.number().positive().optional(),
   height: z.number().positive().optional(),
   length: z.number().positive().optional(),
+  floorplanUrl: z.string().url().optional(),
 });
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
+  { params }: { params: Promise<{ projectSlugOrId: string }> }
 ) {
   try {
-    const { projectId } = await params;
-    const projectIdNum = parseInt(projectId, 10);
-
-    if (isNaN(projectIdNum)) {
-      return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
-    }
+    const { projectSlugOrId } = await params;
 
     const user = await getUser();
     if (!user) {
@@ -36,12 +31,12 @@ export async function GET(
     }
 
     // Verify project belongs to team
-    const project = await getProjectWithRooms(projectIdNum, team.id);
+    const project = await getProjectByIdentifier(projectSlugOrId, team.id);
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    const rooms = await getRoomsForProject(projectIdNum);
+    const rooms = await getRoomsForProject(project.id);
     return NextResponse.json(rooms);
   } catch (error) {
     console.error('Error fetching rooms:', error);
@@ -54,15 +49,10 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
+  { params }: { params: Promise<{ projectSlugOrId: string }> }
 ) {
   try {
-    const { projectId } = await params;
-    const projectIdNum = parseInt(projectId, 10);
-
-    if (isNaN(projectIdNum)) {
-      return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
-    }
+    const { projectSlugOrId } = await params;
 
     const user = await getUser();
     if (!user) {
@@ -75,7 +65,7 @@ export async function POST(
     }
 
     // Verify project belongs to team
-    const project = await getProjectWithRooms(projectIdNum, team.id);
+    const project = await getProjectByIdentifier(projectSlugOrId, team.id);
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
@@ -84,12 +74,13 @@ export async function POST(
     const validatedData = createRoomSchema.parse(body);
 
     const room = await createRoom({
-      projectId: projectIdNum,
+      projectId: project.id,
       name: validatedData.name,
       roomType: validatedData.roomType,
       width: validatedData.width || null,
       height: validatedData.height || null,
       length: validatedData.length || null,
+      floorplanUrl: validatedData.floorplanUrl || null,
       createdBy: user.id,
     });
 

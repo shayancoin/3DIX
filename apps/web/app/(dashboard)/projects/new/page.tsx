@@ -35,8 +35,8 @@ export default function NewProjectPage() {
         throw new Error(data.error || 'Failed to create project');
       }
 
-      const project = await response.json();
-      router.push(`/projects/${project.id}`);
+        const project = await response.json();
+        router.push(`/projects/${project.slug}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {

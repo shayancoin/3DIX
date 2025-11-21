@@ -18,11 +18,13 @@ interface Room {
   sceneData: any;
   vibeSpec: any;
   thumbnailUrl: string | null;
+  floorplanUrl: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
   project: {
     id: number;
+    slug: string;
     name: string;
   };
 }
@@ -30,7 +32,7 @@ interface Room {
 export default function RoomDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const projectId = params.projectId as string;
+  const projectIdentifier = params.projectSlugOrId as string;
   const roomId = params.id as string;
 
   const [room, setRoom] = useState<Room | null>(null);
@@ -38,15 +40,15 @@ export default function RoomDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (projectId && roomId) {
+    if (projectIdentifier && roomId) {
       fetchRoom();
     }
-  }, [projectId, roomId]);
+  }, [projectIdentifier, roomId]);
 
   const fetchRoom = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/projects/${projectId}/rooms/${roomId}`);
+        const response = await fetch(`/api/projects/${projectIdentifier}/rooms/${roomId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch room');
       }
@@ -65,7 +67,7 @@ export default function RoomDetailPage() {
     }
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/rooms/${roomId}`, {
+        const response = await fetch(`/api/projects/${projectIdentifier}/rooms/${roomId}`, {
         method: 'DELETE',
       });
 
@@ -73,7 +75,7 @@ export default function RoomDetailPage() {
         throw new Error('Failed to delete room');
       }
 
-      router.push(`/projects/${projectId}`);
+        router.push(`/projects/${projectIdentifier}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     }
@@ -95,9 +97,11 @@ export default function RoomDetailPage() {
     );
   }
 
-  return (
+    const projectSlug = room.project?.slug || projectIdentifier;
+
+    return (
     <div className="container mx-auto p-6 max-w-7xl">
-      <Link href={`/projects/${projectId}`} className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6">
+        <Link href={`/projects/${projectSlug}`} className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6">
         <ArrowLeft className="h-4 w-4 mr-2" />
         Back to Project
       </Link>
@@ -114,7 +118,7 @@ export default function RoomDetailPage() {
             <Trash2 className="h-4 w-4 mr-2" />
             Delete
           </Button>
-          <Button onClick={() => router.push(`/studio?project=${projectId}&room=${roomId}`)}>
+            <Button onClick={() => router.push(`/studio?project=${projectSlug}&room=${roomId}`)}>
             <Edit className="h-4 w-4 mr-2" />
             Open in Studio
           </Button>
@@ -141,6 +145,20 @@ export default function RoomDetailPage() {
               <span className="text-sm text-muted-foreground">Status:</span>
               <p className="font-medium">{room.isActive ? 'Active' : 'Inactive'}</p>
             </div>
+              {room.floorplanUrl && (
+                <div>
+                  <span className="text-sm text-muted-foreground">Floor plan:</span>
+                  <p className="font-medium">
+                    <Link
+                      href={room.floorplanUrl}
+                      target="_blank"
+                      className="underline"
+                    >
+                      View reference
+                    </Link>
+                  </p>
+                </div>
+              )}
             <div>
               <span className="text-sm text-muted-foreground">Created:</span>
               <p className="font-medium">{new Date(room.createdAt).toLocaleDateString()}</p>

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTeamForUser, getRoom, updateRoom, deleteRoom } from '@/lib/db/queries';
+import { getTeamForUser, getRoom, updateRoom, deleteRoom, getProjectByIdentifier } from '@/lib/db/queries';
 import { getUser } from '@/lib/db/queries';
-import { getProjectWithRooms } from '@/lib/db/queries';
 import { RoomType } from '@/lib/db/schema';
 import { z } from 'zod';
 
@@ -15,19 +14,19 @@ const updateRoomSchema = z.object({
   sceneData: z.any().optional().nullable(),
   vibeSpec: z.any().optional().nullable(),
   thumbnailUrl: z.string().url().optional().nullable(),
+  floorplanUrl: z.string().url().optional().nullable(),
   isActive: z.boolean().optional(),
 });
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ projectId: string; id: string }> }
+  { params }: { params: Promise<{ projectSlugOrId: string; id: string }> }
 ) {
   try {
-    const { projectId, id } = await params;
-    const projectIdNum = parseInt(projectId, 10);
+    const { projectSlugOrId, id } = await params;
     const roomId = parseInt(id, 10);
 
-    if (isNaN(projectIdNum) || isNaN(roomId)) {
+    if (isNaN(roomId)) {
       return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
     }
 
@@ -42,12 +41,12 @@ export async function GET(
     }
 
     // Verify project belongs to team
-    const project = await getProjectWithRooms(projectIdNum, team.id);
+    const project = await getProjectByIdentifier(projectSlugOrId, team.id);
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    const room = await getRoom(roomId, projectIdNum);
+    const room = await getRoom(roomId, project.id);
     if (!room) {
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
@@ -64,14 +63,13 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ projectId: string; id: string }> }
+  { params }: { params: Promise<{ projectSlugOrId: string; id: string }> }
 ) {
   try {
-    const { projectId, id } = await params;
-    const projectIdNum = parseInt(projectId, 10);
+    const { projectSlugOrId, id } = await params;
     const roomId = parseInt(id, 10);
 
-    if (isNaN(projectIdNum) || isNaN(roomId)) {
+    if (isNaN(roomId)) {
       return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
     }
 
@@ -86,7 +84,7 @@ export async function PATCH(
     }
 
     // Verify project belongs to team
-    const project = await getProjectWithRooms(projectIdNum, team.id);
+    const project = await getProjectByIdentifier(projectSlugOrId, team.id);
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
@@ -94,7 +92,7 @@ export async function PATCH(
     const body = await req.json();
     const validatedData = updateRoomSchema.parse(body);
 
-    const room = await updateRoom(roomId, projectIdNum, validatedData);
+    const room = await updateRoom(roomId, project.id, validatedData);
     if (!room) {
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
@@ -117,14 +115,13 @@ export async function PATCH(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ projectId: string; id: string }> }
+  { params }: { params: Promise<{ projectSlugOrId: string; id: string }> }
 ) {
   try {
-    const { projectId, id } = await params;
-    const projectIdNum = parseInt(projectId, 10);
+    const { projectSlugOrId, id } = await params;
     const roomId = parseInt(id, 10);
 
-    if (isNaN(projectIdNum) || isNaN(roomId)) {
+    if (isNaN(roomId)) {
       return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
     }
 
@@ -139,12 +136,12 @@ export async function DELETE(
     }
 
     // Verify project belongs to team
-    const project = await getProjectWithRooms(projectIdNum, team.id);
+    const project = await getProjectByIdentifier(projectSlugOrId, team.id);
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    await deleteRoom(roomId, projectIdNum);
+    await deleteRoom(roomId, project.id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting room:', error);

@@ -44,7 +44,7 @@ function mapTypeRoomTypeToSchema(type: RoomType): SchemaRoomType {
 export default function NewRoomPage() {
   const router = useRouter();
   const params = useParams();
-  const projectId = params.projectId as string;
+  const projectIdentifier = params.projectSlugOrId as string;
 
   const [useWizard, setUseWizard] = useState(false);
   const [wizardRoomType, setWizardRoomType] = useState<RoomType>('kitchen');
@@ -53,6 +53,7 @@ export default function NewRoomPage() {
   const [width, setWidth] = useState('');
   const [height, setHeight] = useState('');
   const [length, setLength] = useState('');
+  const [floorplanUrl, setFloorplanUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,7 +63,7 @@ export default function NewRoomPage() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/rooms`, {
+        const response = await fetch(`/api/projects/${projectIdentifier}/rooms`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -73,6 +74,7 @@ export default function NewRoomPage() {
           width: width ? parseFloat(width) : undefined,
           height: height ? parseFloat(height) : undefined,
           length: length ? parseFloat(length) : undefined,
+            floorplanUrl: floorplanUrl || undefined,
         }),
       });
 
@@ -82,7 +84,7 @@ export default function NewRoomPage() {
       }
 
       const room = await response.json();
-      router.push(`/projects/${projectId}/rooms/${room.id}`);
+        router.push(`/projects/${projectIdentifier}/rooms/${room.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -99,7 +101,7 @@ export default function NewRoomPage() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/rooms`, {
+        const response = await fetch(`/api/projects/${projectIdentifier}/rooms`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -120,7 +122,7 @@ export default function NewRoomPage() {
       }
 
       const room = await response.json();
-      router.push(`/projects/${projectId}/rooms/${room.id}`);
+        router.push(`/projects/${projectIdentifier}/rooms/${room.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       setLoading(false);
@@ -130,7 +132,7 @@ export default function NewRoomPage() {
   if (useWizard) {
     return (
       <div className="container mx-auto p-6">
-        <Link href={`/projects/${projectId}`} className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6">
+        <Link href={`/projects/${projectIdentifier}`} className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Project
         </Link>
@@ -145,7 +147,7 @@ export default function NewRoomPage() {
 
   return (
     <div className="container mx-auto p-6 max-w-2xl">
-      <Link href={`/projects/${projectId}`} className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6">
+        <Link href={`/projects/${projectIdentifier}`} className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6">
         <ArrowLeft className="h-4 w-4 mr-2" />
         Back to Project
       </Link>
@@ -180,10 +182,10 @@ export default function NewRoomPage() {
 
           <div>
             <Label htmlFor="roomType">Room Type *</Label>
-            <select
+              <select
               id="roomType"
               value={roomType}
-              onChange={(e) => setRoomType(e.target.value as RoomType)}
+                onChange={(e) => setRoomType(e.target.value as SchemaRoomType)}
               className="w-full px-3 py-2 border border-input bg-background rounded-md"
               required
             >
@@ -195,41 +197,54 @@ export default function NewRoomPage() {
             </select>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="width">Width (m)</Label>
-              <Input
-                id="width"
-                type="number"
-                step="0.1"
-                value={width}
-                onChange={(e) => setWidth(e.target.value)}
-                placeholder="5.0"
-              />
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="width">Width (m)</Label>
+                <Input
+                  id="width"
+                  type="number"
+                  step="0.1"
+                  value={width}
+                  onChange={(e) => setWidth(e.target.value)}
+                  placeholder="5.0"
+                />
+              </div>
+              <div>
+                <Label htmlFor="height">Height (m)</Label>
+                <Input
+                  id="height"
+                  type="number"
+                  step="0.1"
+                  value={height}
+                  onChange={(e) => setHeight(e.target.value)}
+                  placeholder="2.5"
+                />
+              </div>
+              <div>
+                <Label htmlFor="length">Length (m)</Label>
+                <Input
+                  id="length"
+                  type="number"
+                  step="0.1"
+                  value={length}
+                  onChange={(e) => setLength(e.target.value)}
+                  placeholder="4.0"
+                />
+              </div>
             </div>
+
             <div>
-              <Label htmlFor="height">Height (m)</Label>
+              <Label htmlFor="floorplanUrl">Floor plan image URL</Label>
               <Input
-                id="height"
-                type="number"
-                step="0.1"
-                value={height}
-                onChange={(e) => setHeight(e.target.value)}
-                placeholder="2.5"
+                id="floorplanUrl"
+                value={floorplanUrl}
+                onChange={(e) => setFloorplanUrl(e.target.value)}
+                placeholder="https://example.com/floorplan.png"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Provide a hosted image URL for the architectural mask or floor plan (optional).
+              </p>
             </div>
-            <div>
-              <Label htmlFor="length">Length (m)</Label>
-              <Input
-                id="length"
-                type="number"
-                step="0.1"
-                value={length}
-                onChange={(e) => setLength(e.target.value)}
-                placeholder="4.0"
-              />
-            </div>
-          </div>
 
           {error && (
             <div className="text-destructive text-sm">{error}</div>

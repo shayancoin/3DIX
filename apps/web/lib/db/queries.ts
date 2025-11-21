@@ -1,8 +1,50 @@
-import { desc, and, eq, isNull } from 'drizzle-orm';
+import { desc, and, eq, isNull, ne } from 'drizzle-orm';
 import { db } from './drizzle';
 import { activityLogs, teamMembers, teams, users, projects, rooms, ProjectWithRooms, RoomWithProject, NewProject, NewRoom, layoutJobs, LayoutJob, NewLayoutJob, JobStatus } from './schema';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/session';
+import { toSlug, isNumericIdentifier } from '@/lib/slug';
+
+async function projectSlugExists(teamId: number, slug: string, excludeProjectId?: number) {
+  let condition = and(eq(projects.teamId, teamId), eq(projects.slug, slug));
+  condition = and(condition, isNull(projects.deletedAt));
+
+  if (typeof excludeProjectId === 'number') {
+    condition = and(condition, ne(projects.id, excludeProjectId));
+  }
+
+  const existing = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(condition)
+    .limit(1);
+
+  return existing.length > 0;
+}
+
+export async function generateProjectSlug(teamId: number, name: string) {
+  const baseSlug = toSlug(name, 'project');
+  let candidate = baseSlug;
+  let suffix = 2;
+
+  while (await projectSlugExists(teamId, candidate)) {
+    candidate = `${baseSlug}-${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
+}
+
+function projectIdentifierWhereClause(identifier: string, teamId: number) {
+  const baseCondition = and(eq(projects.teamId, teamId), isNull(projects.deletedAt));
+
+  if (isNumericIdentifier(identifier)) {
+    const projectId = Number(identifier);
+    return and(baseCondition, eq(projects.id, projectId));
+  }
+
+  return and(baseCondition, eq(projects.slug, identifier));
+}
 
 export async function getUser() {
   const sessionCookie = (await cookies()).get('session');
@@ -142,6 +184,16 @@ export async function getProjectsForTeam(teamId: number) {
     .orderBy(desc(projects.updatedAt));
 }
 
+export async function getProjectByIdentifier(identifier: string, teamId: number) {
+  const project = await db
+    .select()
+    .from(projects)
+    .where(projectIdentifierWhereClause(identifier, teamId))
+    .limit(1);
+
+  return project[0] || null;
+}
+
 export async function getProjectWithRooms(projectId: number, teamId: number): Promise<ProjectWithRooms | null> {
   const project = await db
     .select()
@@ -172,6 +224,19 @@ export async function getProjectWithRooms(projectId: number, teamId: number): Pr
   };
 }
 
+export async function getProjectWithRoomsByIdentifier(identifier: string, teamId: number): Promise<ProjectWithRooms | null> {
+  const project = await getProjectByIdentifier(identifier, teamId);
+  if (!project) {
+    return null;
+  }
+
+  const projectRooms = await getRoomsForProject(project.id);
+  return {
+    ...project,
+    rooms: projectRooms,
+  };
+}
+
 export async function createProject(data: NewProject) {
   const [project] = await db
     .insert(projects)
@@ -182,10 +247,21 @@ export async function createProject(data: NewProject) {
 }
 
 export async function updateProject(projectId: number, teamId: number, data: Partial<NewProject>) {
+  const updatePayload: Partial<NewProject> = { ...data };
+
+  if (typeof updatePayload.slug === 'string') {
+    const normalizedSlug = toSlug(updatePayload.slug, 'project');
+    const exists = await projectSlugExists(teamId, normalizedSlug, projectId);
+    if (exists) {
+      throw new Error('Slug already in use for this team');
+    }
+    updatePayload.slug = normalizedSlug;
+  }
+
   const [project] = await db
     .update(projects)
     .set({
-      ...data,
+      ...updatePayload,
       updatedAt: new Date(),
     })
     .where(and(

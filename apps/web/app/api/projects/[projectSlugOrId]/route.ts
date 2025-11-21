@@ -1,24 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTeamForUser, getProjectWithRooms, updateProject, deleteProject } from '@/lib/db/queries';
+import {
+  getTeamForUser,
+  getProjectWithRoomsByIdentifier,
+  updateProject,
+  deleteProject,
+  getProjectByIdentifier,
+} from '@/lib/db/queries';
 import { getUser } from '@/lib/db/queries';
 import { z } from 'zod';
 
 const updateProjectSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().optional(),
+  slug: z.string().min(1).max(255).optional(),
 });
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ projectSlugOrId: string }> }
 ) {
   try {
-    const { id } = await params;
-    const projectId = parseInt(id, 10);
-
-    if (isNaN(projectId)) {
-      return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
-    }
+    const { projectSlugOrId } = await params;
 
     const user = await getUser();
     if (!user) {
@@ -30,7 +32,7 @@ export async function GET(
       return NextResponse.json({ error: 'No team found' }, { status: 404 });
     }
 
-    const project = await getProjectWithRooms(projectId, team.id);
+    const project = await getProjectWithRoomsByIdentifier(projectSlugOrId, team.id);
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
@@ -47,15 +49,10 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ projectSlugOrId: string }> }
 ) {
   try {
-    const { id } = await params;
-    const projectId = parseInt(id, 10);
-
-    if (isNaN(projectId)) {
-      return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
-    }
+    const { projectSlugOrId } = await params;
 
     const user = await getUser();
     if (!user) {
@@ -67,10 +64,15 @@ export async function PATCH(
       return NextResponse.json({ error: 'No team found' }, { status: 404 });
     }
 
+    const existingProject = await getProjectByIdentifier(projectSlugOrId, team.id);
+    if (!existingProject) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
     const body = await req.json();
     const validatedData = updateProjectSchema.parse(body);
 
-    const project = await updateProject(projectId, team.id, validatedData);
+    const project = await updateProject(existingProject.id, team.id, validatedData);
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
@@ -83,6 +85,12 @@ export async function PATCH(
         { status: 400 }
       );
     }
+    if (error instanceof Error && error.message.includes('Slug already in use')) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 409 }
+      );
+    }
     console.error('Error updating project:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -93,15 +101,10 @@ export async function PATCH(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ projectSlugOrId: string }> }
 ) {
   try {
-    const { id } = await params;
-    const projectId = parseInt(id, 10);
-
-    if (isNaN(projectId)) {
-      return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
-    }
+    const { projectSlugOrId } = await params;
 
     const user = await getUser();
     if (!user) {
@@ -113,7 +116,12 @@ export async function DELETE(
       return NextResponse.json({ error: 'No team found' }, { status: 404 });
     }
 
-    await deleteProject(projectId, team.id);
+    const project = await getProjectByIdentifier(projectSlugOrId, team.id);
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    await deleteProject(project.id, team.id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting project:', error);

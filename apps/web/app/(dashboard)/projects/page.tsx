@@ -9,6 +9,7 @@ import Link from 'next/link';
 
 interface Project {
   id: number;
+  slug: string;
   name: string;
   description: string | null;
   createdAt: string;
@@ -85,8 +86,8 @@ export default function ProjectsPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((project) => (
-            <Link key={project.id} href={`/projects/${project.id}`}>
+            {projects.map((project) => (
+              <Link key={project.id} href={`/projects/${project.slug}`}>
               <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer h-full">
                 <div className="flex items-start justify-between mb-4">
                   <Folder className="h-8 w-8 text-primary" />

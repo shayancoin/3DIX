@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTeamForUser, getProjectsForTeam, createProject } from '@/lib/db/queries';
+import { getTeamForUser, getProjectsForTeam, createProject, generateProjectSlug } from '@/lib/db/queries';
 import { getUser } from '@/lib/db/queries';
 import { z } from 'zod';
 
 const createProjectSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().optional(),
+  slug: z.string().min(1).max(255).optional(),
 });
 
 export async function GET() {
@@ -46,10 +47,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const validatedData = createProjectSchema.parse(body);
 
+    const slug = await generateProjectSlug(team.id, validatedData.slug || validatedData.name);
+
     const project = await createProject({
       teamId: team.id,
       name: validatedData.name,
       description: validatedData.description || null,
+      slug,
       createdBy: user.id,
     });
 

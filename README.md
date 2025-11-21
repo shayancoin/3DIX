@@ -145,6 +145,13 @@ The ML service will be available at `http://localhost:8001`.
   - Backend: Uvicorn with `--reload` flag watches for Python file changes
 - **Docker Development**: Use `docker-compose.dev.yml` for containerized development with volume mounts for live code updates
 
+### Projects & Rooms Domain
+
+- Projects receive stable, per-team slugs (auto-generated from the name) so sharing a link keeps working even if IDs change.
+- Dashboard routes and API endpoints accept either the slug or numeric ID, but all newly generated links use the slug.
+- Room records capture optional `floorplanUrl` references, enabling floor-plan–conditioned jobs in later steps.
+- The dashboard room forms expose a floor plan URL field; room detail pages surface the reference for quick verification.
+
 ### Verifying the Dev Loop
 
 1. **Start the Backend API:**
