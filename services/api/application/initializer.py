@@ -12,6 +12,10 @@ class IncludeAPIRouter(object):
         from application.main.routers.question_classifier import router as router_question_classification
         from application.main.routers.image_classifier import router as router_image_classification
         from application.main.routers.vibe import router as router_vibe
+        from application.main.routers.projects import router as router_projects
+        from application.main.routers.jobs import router as router_jobs
+        from application.main.routers.jobs_internal import router as router_jobs_internal
+        from application.main.routers.custom_objects import router as router_custom_objects
         from fastapi.routing import APIRouter
         router = APIRouter()
         router.include_router(router_health_check, prefix='/api/v1', tags=['health_check'])
@@ -20,6 +24,10 @@ class IncludeAPIRouter(object):
         router.include_router(router_question_classification, prefix='/api/v1', tags=['question_classification'])
         router.include_router(router_image_classification, prefix='/api/v1', tags=['image_classification'])
         router.include_router(router_vibe, prefix='/api/v1/vibe', tags=['vibe'])
+        router.include_router(router_projects, prefix='/api/v1/projects', tags=['projects'])
+        router.include_router(router_jobs, prefix='/api/v1/jobs', tags=['jobs'])
+        router.include_router(router_jobs_internal, prefix='/api/v1/internal/jobs', tags=['jobs-internal'])
+        router.include_router(router_custom_objects, prefix='/api/v1/custom-objects', tags=['custom-objects'])
         return router
 
 

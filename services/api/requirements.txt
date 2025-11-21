@@ -16,3 +16,4 @@ cutelog
 python-multipart
 pydantic>=2.0
 pydantic-settings
+httpx

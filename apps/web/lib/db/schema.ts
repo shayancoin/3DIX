@@ -5,6 +5,9 @@ import {
   text,
   timestamp,
   integer,
+  jsonb,
+  boolean,
+  real,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -140,3 +143,145 @@ export enum ActivityType {
   INVITE_TEAM_MEMBER = 'INVITE_TEAM_MEMBER',
   ACCEPT_INVITATION = 'ACCEPT_INVITATION',
 }
+
+// Projects & Rooms Domain Schema
+
+export enum RoomType {
+  KITCHEN = 'kitchen',
+  BATHROOM = 'bathroom',
+  CLOSET = 'closet',
+  BEDROOM = 'bedroom',
+  LIVING_ROOM = 'living_room',
+  DINING_ROOM = 'dining_room',
+  OFFICE = 'office',
+  OTHER = 'other',
+}
+
+export const projects = pgTable('projects', {
+  id: serial('id').primaryKey(),
+  teamId: integer('team_id')
+    .notNull()
+    .references(() => teams.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at'),
+  createdBy: integer('created_by')
+    .references(() => users.id),
+});
+
+export const rooms = pgTable('rooms', {
+  id: serial('id').primaryKey(),
+  projectId: integer('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  roomType: varchar('room_type', { length: 50 }).notNull(), // RoomType enum
+  // Room dimensions (in meters)
+  width: real('width'),
+  height: real('height'),
+  length: real('length'),
+  // Layout and scene data (JSON)
+  layoutData: jsonb('layout_data'), // 2D layout representation
+  sceneData: jsonb('scene_data'), // 3D scene representation
+  vibeSpec: jsonb('vibe_spec'), // Vibe specification (prompt, tags, etc.)
+  // Metadata
+  thumbnailUrl: text('thumbnail_url'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at'),
+  createdBy: integer('created_by')
+    .references(() => users.id),
+});
+
+// Relations
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  team: one(teams, {
+    fields: [projects.teamId],
+    references: [teams.id],
+  }),
+  creator: one(users, {
+    fields: [projects.createdBy],
+    references: [users.id],
+  }),
+  rooms: many(rooms),
+}));
+
+export const roomsRelations = relations(rooms, ({ one }) => ({
+  project: one(projects, {
+    fields: [rooms.projectId],
+    references: [projects.id],
+  }),
+  creator: one(users, {
+    fields: [rooms.createdBy],
+    references: [users.id],
+  }),
+}));
+
+// Type exports
+export type Project = typeof projects.$inferSelect;
+export type NewProject = typeof projects.$inferInsert;
+export type Room = typeof rooms.$inferSelect;
+export type NewRoom = typeof rooms.$inferInsert;
+
+export type ProjectWithRooms = Project & {
+  rooms: Room[];
+};
+
+export type RoomWithProject = Room & {
+  project: Project;
+};
+
+// Job System Schema
+
+export enum JobStatus {
+  QUEUED = 'queued',
+  RUNNING = 'running',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+  CANCELLED = 'cancelled',
+}
+
+export const layoutJobs = pgTable('layout_jobs', {
+  id: serial('id').primaryKey(),
+  roomId: integer('room_id')
+    .notNull()
+    .references(() => rooms.id, { onDelete: 'cascade' }),
+  status: varchar('status', { length: 20 }).notNull().default('queued'), // JobStatus enum
+  // Job request data
+  requestData: jsonb('request_data'), // LayoutRequest
+  // Job response data
+  responseData: jsonb('response_data'), // LayoutResponse
+  // Progress tracking
+  progress: integer('progress').default(0), // 0-100
+  progressMessage: text('progress_message'),
+  // Error tracking
+  errorMessage: text('error_message'),
+  errorDetails: jsonb('error_details'),
+  // Timestamps
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // Worker tracking
+  workerId: varchar('worker_id', { length: 255 }),
+  retryCount: integer('retry_count').default(0),
+});
+
+// Relations
+export const layoutJobsRelations = relations(layoutJobs, ({ one }) => ({
+  room: one(rooms, {
+    fields: [layoutJobs.roomId],
+    references: [rooms.id],
+  }),
+}));
+
+// Type exports
+export type LayoutJob = typeof layoutJobs.$inferSelect;
+export type NewLayoutJob = typeof layoutJobs.$inferInsert;
+
+export type LayoutJobWithRoom = LayoutJob & {
+  room: Room;
+};
