@@ -40,6 +40,17 @@ ASSET_INDEX = [
 
 
 def _draw_semantic_map(instances: List[Instance], size: int = 256) -> np.ndarray:
+    """
+    Render a 2D semantic map from scene instances onto a square grid.
+    
+    Parameters:
+        instances (List[Instance]): Sequence of instances, each as (category_id, size3d, position3d, orientation).
+            Positions and sizes are interpreted in world units and projected onto the grid.
+        size (int): Width and height of the output square semantic map in pixels.
+    
+    Returns:
+        np.ndarray: A 2D uint8 array of shape (size, size) where each element is the semantic category id for that pixel.
+    """
     semantic = np.zeros((size, size), dtype=np.uint8)
     for inst in instances:
         cid, size3d, pos3d, _ = inst
@@ -56,6 +67,15 @@ def _draw_semantic_map(instances: List[Instance], size: int = 256) -> np.ndarray
 
 
 def semantic_to_png_url(semantic: np.ndarray) -> str:
+    """
+    Convert a 2D semantic class map into a PNG data URL using the module PALETTE.
+    
+    Parameters:
+        semantic (np.ndarray): 2D array of integer class IDs where each value selects a color from PALETTE.
+    
+    Returns:
+        str: A data URL (`data:image/png;base64,...`) containing a PNG image in which each class ID is rendered with its corresponding RGB color from PALETTE.
+    """
     h, w = semantic.shape
     rgb = np.zeros((h, w, 3), dtype=np.uint8)
     for cid, color in PALETTE.items():
@@ -73,6 +93,22 @@ def generate_semantic_layout(
     seed: int,
     vibe_bias: Optional[np.ndarray],
 ) -> Tuple[np.ndarray, List[Instance]]:
+    """
+    Generate a deterministic semantic occupancy map and a list of scene instances for a simple room layout.
+    
+    The function produces a 2D semantic map where each pixel encodes a category id and a corresponding list of instances describing placed objects. If an architecture mask is provided, it is overlaid onto the semantic map; the mask is resized to match the semantic shape using nearest-neighbor interpolation when necessary.
+    
+    Parameters:
+        room_type (str): High-level room type hint (e.g., "living_room") used to influence layout priors.
+        arch_mask (Optional[np.ndarray]): Optional 2D array of category ids to overlay on the generated semantic map.
+            If its shape differs from the generated map, it is resized with nearest-neighbor interpolation before overlay.
+        seed (int): Seed for randomness to ensure deterministic outputs.
+        vibe_bias (Optional[np.ndarray]): Optional bias tensor that can influence stochastic placement decisions.
+    
+    Returns:
+        semantic (np.ndarray): 2D array (uint8) where each value is a semantic category id for that pixel.
+        instances (List[Instance]): List of placed instances; each element is a tuple (category_id, size3d, pos3d, orientation).
+    """
     random.seed(seed)
     np.random.seed(seed)
 
@@ -96,6 +132,27 @@ def generate_semantic_layout(
 
 
 def to_layout_response(semantic: np.ndarray, instances: List[Instance]):
+    """
+    Builds a layout response dictionary containing a PNG data URL of the semantic map, world scale, scene objects, a room outline, and generator metadata.
+    
+    Parameters:
+        semantic (np.ndarray): 2D semantic map array where integer values represent semantic class ids.
+        instances (List[Instance]): List of instances as (category_id, size3d, pos3d, orientation).
+    
+    Returns:
+        dict: A response object with the following keys:
+            - semantic_map_png_url (str): PNG data URL generated from `semantic`.
+            - world_scale (float): Scale factor applied to world coordinates.
+            - objects (List[dict]): List of object entries, each containing:
+                - id (str): UUID for the object.
+                - category (str): Human-readable category name.
+                - position (List[float]): [x, y, z] world position.
+                - size (List[float]): [w, h, d] object size.
+                - orientation (int): Object orientation as an integer.
+                - mesh_url (str|None): URL to a matching asset mesh, or `None` if none found.
+            - room_outline (List[Tuple[float, float]]): Polygon points describing the room boundary.
+            - metadata (dict): Additional metadata; includes `"generator": "sem-layout-stub"`.
+    """
     objects = []
     for cid, size3d, pos3d, orient in instances:
         # simple nearest-size retrieval

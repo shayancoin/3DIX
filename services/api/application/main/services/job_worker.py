@@ -32,7 +32,21 @@ class JobWorker:
 
     async def process_job(self, job_id: int, request_data: dict) -> dict:
         """
-        Process a layout generation job by calling the ML service.
+        Process a layout generation job by invoking the ML service and updating job status.
+        
+        Parameters:
+            job_id (int): ID of the job to process.
+            request_data (dict): Payload sent to the ML service to generate the layout.
+        
+        Returns:
+            dict: Resulting response data for the job containing:
+                - jobId (str): The job ID as a string.
+                - status (str): Final job status (\"completed\" on success).
+                - objects (list): Detected objects from the ML response.
+                - semantic_map_png_url (str|None): URL to the semantic map PNG if provided.
+                - world_scale (float|None): World scale value from the ML response if provided.
+                - room_outline (Any|None): Room outline data from the ML response if provided.
+                - metadata (dict): Metadata about processing, including `processingTime` (seconds).
         """
         self.current_job_id = job_id
         start_time = time.time()

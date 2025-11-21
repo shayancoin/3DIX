@@ -25,6 +25,13 @@ const serializeJob = (job: any): LayoutJobStatusResponse => ({
   updated_at: job.updatedAt ? new Date(job.updatedAt).toISOString() : null,
 });
 
+/**
+ * Fetches and returns the status of a layout job identified by the route `id`.
+ *
+ * @param req - The incoming Next.js request
+ * @param params - Route parameters; `params.id` is the job id string
+ * @returns A NextResponse containing the serialized job status on success; on error, a JSON payload with an `error` object and one of the codes `BAD_REQUEST`, `UNAUTHORIZED`, `NO_TEAM`, `NOT_FOUND`, `FORBIDDEN`, or `INTERNAL_ERROR`.
+ */
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }

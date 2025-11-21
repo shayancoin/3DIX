@@ -73,18 +73,18 @@ async def get_room(request: Request, room_id: str):
 @router.put("/{room_id}", response_model=Room)
 async def update_room(request: Request, room_id: str, room_in: RoomUpdate):
     """
-    Update fields of an existing room and return the updated Room.
+    Update fields of an existing room.
     
-    Only fields provided in `room_in` are applied; when any update is performed the `updated_at` timestamp is set to the current UTC time.
+    Only fields provided in `room_in` are persisted; when any update occurs the `updated_at` timestamp is set to the current UTC time.
     
     Parameters:
-        room_in (RoomUpdate): Fields to update on the room; only supplied fields will be persisted.
+        room_in (RoomUpdate): Fields to apply to the room; only supplied fields will be persisted.
     
     Returns:
         Room: The room object after applying the requested updates.
     
     Raises:
-        HTTPException: Raises a 404 error with detail "Room not found" if no room exists with the given `room_id`.
+        HTTPException: 404 if no room exists with the given `room_id`.
     """
     room_data = await request.app.state.db_operations.find_one("rooms", {"_id": room_id})
     if not room_data:
