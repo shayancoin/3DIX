@@ -24,19 +24,102 @@ This monorepo was fused from the following sources:
 - **services/api**: `fastapi-template`.
 - **research/**: `SemLayoutDiff`, `sam-3d-objects`, `sam-3d-body`.
 
+## Step 0: Environment Setup
+
+### Prerequisites
+
+- **Node.js** 18+ and **pnpm** 9.1.0+
+- **Python** 3.10+
+- **Docker** (optional, for containerized development)
+- **Stripe CLI** (for web app payment integration)
+
+### Initial Setup
+
+1. **Install dependencies:**
+   ```bash
+   # Install frontend dependencies
+   pnpm install
+   
+   # Install backend dependencies
+   cd services/api
+   pip install -r requirements.txt
+   cd ../..
+   ```
+
+2. **Configure environment variables:**
+   
+   **Web App (apps/web):**
+   ```bash
+   cd apps/web
+   # Use the setup script to create .env file
+   pnpm db:setup
+   # Or manually copy and configure
+   cp .env.example .env.local
+   ```
+   
+   Required variables:
+   - `POSTGRES_URL`: Database connection string
+   - `STRIPE_SECRET_KEY`: Stripe API secret key
+   - `STRIPE_WEBHOOK_SECRET`: Stripe webhook secret (run `stripe listen --print-secret`)
+   - `BASE_URL`: Application base URL (default: `http://localhost:3000`)
+   - `AUTH_SECRET`: Random secret for JWT (generate with `openssl rand -base64 32`)
+   
+   **API Service (services/api):**
+   ```bash
+   cd services/api
+   # Copy the example file
+   cp .env.example .env.dev
+   # Edit .env.dev with your configuration
+   ```
+   
+   Required variables:
+   - `ENV_STATE`: Environment state (`dev` or `prod`)
+   - `DEV_API_NAME`, `DEV_API_DESCRIPTION`, `DEV_API_VERSION`: API metadata
+   - `DEV_HOST`, `DEV_PORT`: Server configuration
+   - `DEV_LOG_LEVEL`: Logging level
+
+3. **Database setup (Web App):**
+   ```bash
+   cd apps/web
+   # Run migrations
+   pnpm db:migrate
+   # Seed database (optional)
+   pnpm db:seed
+   ```
+
 ### Getting Started
 
-**Frontend:**
+**Frontend (Development):**
 ```bash
-pnpm install
-pnpm dev --filter @3dix/web
+# From root directory
+pnpm dev:web
+# Or from apps/web
+cd apps/web && pnpm dev
 ```
 
-**Backend:**
+**Backend (Development):**
+
+Option 1: Direct Python execution
 ```bash
+# From root directory
+pnpm dev:api
+# Or from services/api
 cd services/api
-# Ensure python 3.10+ and dependencies
-pip install -r requirements.txt
-uvicorn manage:app --reload
+uvicorn manage:app --reload --host 0.0.0.0 --port 8000
 ```
+
+Option 2: Docker Compose (with hot reload)
+```bash
+# From root directory
+docker compose -f infra/docker-compose.dev.yml up --build
+```
+
+The API will be available at `http://localhost:8000` and the web app at `http://localhost:3000`.
+
+### Development Workflow
+
+- **Hot Reload**: Both frontend and backend support hot reload
+  - Frontend: Next.js automatically reloads on file changes
+  - Backend: Uvicorn with `--reload` flag watches for Python file changes
+- **Docker Development**: Use `docker-compose.dev.yml` for containerized development with volume mounts for live code updates
 
