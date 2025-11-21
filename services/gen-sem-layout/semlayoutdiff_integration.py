@@ -162,10 +162,11 @@ class SemLayoutDiffIntegration:
             Tuple of (semantic_map, metadata)
         """
         if not self.initialized or not SEMLAYOUTDIFF_AVAILABLE:
-            # Return stub semantic map
-            return self._generate_stub_semantic_map(room_type), {
+            # Return stub semantic map with category bias applied
+            return self._generate_stub_semantic_map(room_type, category_bias), {
                 "model": "stub",
-                "room_type": room_type
+                "room_type": room_type,
+                "category_bias_applied": category_bias is not None
             }
 
         # TODO: Implement actual SLDN inference
@@ -204,8 +205,8 @@ class SemLayoutDiffIntegration:
         
         return self._generate_stub_attributes(room_type, semantic_map)
 
-    def _generate_stub_semantic_map(self, room_type: str) -> np.ndarray:
-        """Generate a stub semantic map for testing."""
+    def _generate_stub_semantic_map(self, room_type: str, category_bias: Optional[Dict[str, float]] = None) -> np.ndarray:
+        """Generate a stub semantic map for testing, with optional category bias."""
         # Create a semantic map matching SemLayoutDiff's expected size (1200x1200)
         # For stub mode, we'll use a smaller size (256x256) for performance
         size = 256
@@ -215,26 +216,72 @@ class SemLayoutDiffIntegration:
         # Fill most of the map with floor
         semantic_map[20:size-20, 20:size-20] = 1  # Floor region
         
-        # Add some basic structure based on room type
-        if room_type == "kitchen":
-            # Add furniture regions with proper spacing
-            semantic_map[80:130, 30:80] = 2   # Refrigerator (left wall)
-            semantic_map[80:130, 100:150] = 3  # Sink (center)
-            semantic_map[80:130, 180:230] = 4  # Stove (right wall)
-            semantic_map[150:200, 50:200] = 5  # Counter/island
-        elif room_type == "bedroom":
-            semantic_map[60:180, 60:180] = 6   # Bed (center)
-            semantic_map[30:80, 200:250] = 7   # Dresser (corner)
-            semantic_map[200:250, 30:80] = 8   # Nightstand
-        elif room_type == "bathroom":
-            semantic_map[80:130, 100:150] = 9   # Sink
-            semantic_map[150:200, 50:100] = 10  # Toilet
-            semantic_map[150:200, 150:200] = 11 # Shower
+        # Category to ID mapping
+        category_to_id = {
+            "refrigerator": 2,
+            "sink": 3,
+            "stove": 4,
+            "counter": 5,
+            "bed": 6,
+            "dresser": 7,
+            "nightstand": 8,
+            "toilet": 10,
+            "shower": 11,
+            "table": 12,
+            "chair": 13,
+        }
+        
+        # Apply category bias if provided
+        if category_bias:
+            # Sort categories by bias weight (highest first)
+            sorted_categories = sorted(
+                category_bias.items(),
+                key=lambda x: x[1],
+                reverse=True
+            )
+            
+            # Generate objects based on bias weights
+            object_count = max(3, min(8, int(sum(category_bias.values()) * 5)))
+            positions = []
+            
+            for i, (category, bias) in enumerate(sorted_categories[:object_count]):
+                if category in category_to_id and bias > 0.3:
+                    cat_id = category_to_id[category]
+                    # Place objects with spacing based on bias
+                    y_pos = 60 + (i * 40) % (size - 120)
+                    x_pos = 40 + (i * 60) % (size - 80)
+                    
+                    # Ensure no overlap
+                    overlap = False
+                    for py, px, pw, ph in positions:
+                        if abs(y_pos - py) < 50 and abs(x_pos - px) < 50:
+                            overlap = True
+                            break
+                    
+                    if not overlap:
+                        # Size based on bias (higher bias = larger object)
+                        obj_size = int(30 + bias * 40)
+                        semantic_map[y_pos:y_pos+obj_size, x_pos:x_pos+obj_size] = cat_id
+                        positions.append((y_pos, x_pos, obj_size, obj_size))
         else:
-            # Generic room
-            semantic_map[80:150, 80:150] = 12   # Table
-            semantic_map[180:230, 50:100] = 13  # Chair 1
-            semantic_map[180:230, 150:200] = 14 # Chair 2
+            # Default layout based on room type
+            if room_type == "kitchen":
+                semantic_map[80:130, 30:80] = 2   # Refrigerator
+                semantic_map[80:130, 100:150] = 3  # Sink
+                semantic_map[80:130, 180:230] = 4  # Stove
+                semantic_map[150:200, 50:200] = 5  # Counter
+            elif room_type == "bedroom":
+                semantic_map[60:180, 60:180] = 6   # Bed
+                semantic_map[30:80, 200:250] = 7   # Dresser
+                semantic_map[200:250, 30:80] = 8   # Nightstand
+            elif room_type == "bathroom":
+                semantic_map[80:130, 100:150] = 9   # Sink
+                semantic_map[150:200, 50:100] = 10  # Toilet
+                semantic_map[150:200, 150:200] = 11 # Shower
+            else:
+                semantic_map[80:150, 80:150] = 12   # Table
+                semantic_map[180:230, 50:100] = 13  # Chair 1
+                semantic_map[180:230, 150:200] = 14 # Chair 2
         
         return semantic_map
 

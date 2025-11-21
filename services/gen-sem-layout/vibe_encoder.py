@@ -60,11 +60,18 @@ class VibeEncoder:
         """Initialize CLIP models for text and image encoding."""
         print(f"Initializing vibe encoder with model: {model_name}")
         
-        # TODO: Implement actual model loading
-        # self.tokenizer = CLIPTokenizer.from_pretrained(model_name)
-        # self.text_model = CLIPTextModel.from_pretrained(model_name).to(self.device)
-        # self.processor = CLIPProcessor.from_pretrained(model_name)
-        # self.image_model = CLIPModel.from_pretrained(model_name).to(self.device)
+        try:
+            if VIBE_ENCODER_AVAILABLE:
+                # Load CLIP model for text and image encoding
+                self.model = CLIPModel.from_pretrained(model_name).to(self.device)
+                self.processor = CLIPProcessor.from_pretrained(model_name)
+                self.model.eval()
+                print(f"CLIP model loaded successfully on {self.device}")
+            else:
+                print("CLIP models not available, using stub mode")
+        except Exception as e:
+            print(f"Warning: Failed to load CLIP model: {e}")
+            print("Falling back to stub mode")
         
         self.initialized = True
 
@@ -78,18 +85,28 @@ class VibeEncoder:
         Returns:
             Latent vector
         """
-        if not self.initialized or not VIBE_ENCODER_AVAILABLE:
+        if not text or not text.strip():
+            return self._get_stub_embedding("", "text")
+        
+        if not self.initialized or not VIBE_ENCODER_AVAILABLE or not hasattr(self, 'model'):
             # Return stub embedding
             return self._get_stub_embedding(text, "text")
 
-        # TODO: Implement actual text encoding
-        # inputs = self.tokenizer(text, return_tensors="pt", padding=True, truncation=True)
-        # with torch.no_grad():
-        #     outputs = self.text_model(**inputs)
-        #     embedding = outputs.last_hidden_state.mean(dim=1).squeeze().cpu().numpy()
-        # return embedding
-
-        return self._get_stub_embedding(text, "text")
+        try:
+            # Encode text using CLIP
+            inputs = self.processor(text=[text], return_tensors="pt", padding=True, truncation=True)
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            
+            with torch.no_grad():
+                text_features = self.model.get_text_features(**inputs)
+                # Normalize features
+                text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+                embedding = text_features.squeeze().cpu().numpy()
+            
+            return embedding
+        except Exception as e:
+            print(f"Error encoding text with CLIP: {e}, using stub")
+            return self._get_stub_embedding(text, "text")
 
     def encode_image(self, image_url: str) -> Optional[np.ndarray]:
         """
@@ -101,7 +118,7 @@ class VibeEncoder:
         Returns:
             Latent vector or None if encoding fails
         """
-        if not self.initialized or not VIBE_ENCODER_AVAILABLE:
+        if not self.initialized or not VIBE_ENCODER_AVAILABLE or not hasattr(self, 'model'):
             return self._get_stub_embedding("image", "image")
 
         try:
@@ -109,22 +126,31 @@ class VibeEncoder:
             if image_url.startswith("data:image"):
                 image_data = image_url.split(",")[1]
                 image_bytes = base64.b64decode(image_data)
-                image = Image.open(io.BytesIO(image_bytes))
+                image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
             else:
                 # Load from URL (would need requests in production)
-                return None
+                import requests
+                try:
+                    response = requests.get(image_url, timeout=10)
+                    image = Image.open(io.BytesIO(response.content)).convert('RGB')
+                except Exception as e:
+                    print(f"Error loading image from URL: {e}")
+                    return None
 
-            # TODO: Implement actual image encoding
-            # inputs = self.processor(images=image, return_tensors="pt")
-            # with torch.no_grad():
-            #     outputs = self.image_model.get_image_features(**inputs)
-            #     embedding = outputs.squeeze().cpu().numpy()
-            # return embedding
-
-            return self._get_stub_embedding("image", "image")
+            # Encode image using CLIP
+            inputs = self.processor(images=image, return_tensors="pt")
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            
+            with torch.no_grad():
+                image_features = self.model.get_image_features(**inputs)
+                # Normalize features
+                image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+                embedding = image_features.squeeze().cpu().numpy()
+            
+            return embedding
         except Exception as e:
-            print(f"Error encoding image: {e}")
-            return None
+            print(f"Error encoding image with CLIP: {e}")
+            return self._get_stub_embedding("image", "image")
 
     def compute_category_bias(
         self,
@@ -183,19 +209,29 @@ class VibeEncoder:
             slider_id = slider.get("id", "")
             slider_value = slider.get("value", 0.5)
             
-            if slider_id == "complexity":
-                # Higher complexity = more objects
+            if slider_id == "complexity" or slider_id == "clutter":
+                # Higher complexity/clutter = more objects, higher density
                 for category in bias_weights:
-                    if slider_value > 0.7:
-                        bias_weights[category] = min(1.0, bias_weights[category] + 0.1)
-            elif slider_id == "spaciousness":
-                # Higher spaciousness = fewer, larger objects
-                if slider_value > 0.7:
+                    # Increase bias proportionally to slider value
+                    increase = (slider_value - 0.5) * 0.4  # Scale from -0.2 to +0.2
+                    bias_weights[category] = np.clip(bias_weights[category] + increase, 0.0, 1.0)
+            elif slider_id == "spaciousness" or slider_id == "openness":
+                # Higher spaciousness/openness = fewer, larger objects
+                if slider_value > 0.6:
                     # Reduce bias for small objects
                     small_objects = ["chair", "table", "nightstand"]
+                    reduction = (slider_value - 0.6) * 0.5  # Scale from 0 to 0.2
                     for cat in small_objects:
                         if cat in bias_weights:
-                            bias_weights[cat] = max(0.2, bias_weights[cat] - 0.2)
+                            bias_weights[cat] = max(0.1, bias_weights[cat] - reduction)
+            elif slider_id == "warmth":
+                # Higher warmth = more soft furniture (sofas, beds, chairs)
+                if slider_value > 0.6:
+                    warm_categories = ["sofa", "bed", "chair"]
+                    increase = (slider_value - 0.6) * 0.3
+                    for cat in warm_categories:
+                        if cat in bias_weights:
+                            bias_weights[cat] = min(1.0, bias_weights[cat] + increase)
 
         # Normalize weights
         max_weight = max(bias_weights.values()) if bias_weights.values() else 1.0
@@ -226,9 +262,14 @@ class VibeEncoder:
         if image_url:
             image_latent = self.encode_image(image_url)
 
-        # Combine latents (simple concatenation for stub)
+        # Combine latents (weighted average for CLIP, concatenation for stub)
         if image_latent is not None:
-            combined_latent = np.concatenate([text_latent, image_latent])
+            if len(text_latent) == len(image_latent):
+                # Weighted average for same-dimensional embeddings (CLIP)
+                combined_latent = 0.7 * text_latent + 0.3 * image_latent
+            else:
+                # Concatenation for different dimensions (stub)
+                combined_latent = np.concatenate([text_latent, image_latent])
         else:
             combined_latent = text_latent
 
