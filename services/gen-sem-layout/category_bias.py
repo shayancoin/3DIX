@@ -10,14 +10,18 @@ def compute_category_bias(
     available_categories: List[str]
 ) -> Dict[str, float]:
     """
-    Compute category bias weights based on vibe specification.
-
-    Args:
-        vibe_spec: Vibe specification with tags, sliders, etc.
-        available_categories: List of available object categories
-
+    Compute normalized bias weights for object categories from a vibe specification.
+    
+    Parameters:
+        vibe_spec (dict): Vibe specification that may include:
+            - "tags": list of tag objects with "label" (string) and optional "weight" (float).
+            - "prompt": object with "text" (string).
+            - "sliders": list of slider objects with "id" (string) and "value" (float).
+        available_categories (list[str]): Categories to compute biases for.
+    
     Returns:
-        Dictionary mapping category names to bias weights (0-1)
+        dict[str, float]: Mapping from each category name to a bias weight in [0.0, 1.0].
+            Weights are normalized so that the maximum value is 1.0.
     """
     bias_weights = {cat: 0.5 for cat in available_categories}  # Default neutral
 
