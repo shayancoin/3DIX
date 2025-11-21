@@ -2,12 +2,15 @@
 API routes for job management.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
+from application.main.services.job_worker import JobWorker
+from application.main.services.layout_service import LayoutService
 
 router = APIRouter()
+layout_service = LayoutService()
 
 
 class JobResponse(BaseModel):

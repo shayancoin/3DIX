@@ -14,6 +14,7 @@ class IncludeAPIRouter(object):
         from application.main.routers.vibe import router as router_vibe
         from application.main.routers.projects import router as router_projects
         from application.main.routers.jobs import router as router_jobs
+        from application.main.routers.jobs_internal import router as router_jobs_internal
         from fastapi.routing import APIRouter
         router = APIRouter()
         router.include_router(router_health_check, prefix='/api/v1', tags=['health_check'])
@@ -24,6 +25,7 @@ class IncludeAPIRouter(object):
         router.include_router(router_vibe, prefix='/api/v1/vibe', tags=['vibe'])
         router.include_router(router_projects, prefix='/api/v1/projects', tags=['projects'])
         router.include_router(router_jobs, prefix='/api/v1/jobs', tags=['jobs'])
+        router.include_router(router_jobs_internal, prefix='/api/v1/internal/jobs', tags=['jobs-internal'])
         return router
 
 

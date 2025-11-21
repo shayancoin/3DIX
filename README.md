@@ -116,6 +116,18 @@ docker compose -f infra/docker-compose.dev.yml up --build
 
 The API will be available at `http://localhost:8000` and the web app at `http://localhost:3000`.
 
+**ML Service (Development):**
+```bash
+# From services/gen-sem-layout
+cd services/gen-sem-layout
+pip install -r requirements.txt
+python main.py
+# Or with uvicorn
+uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+The ML service will be available at `http://localhost:8001`.
+
 ### Development Workflow
 
 - **Hot Reload**: Both frontend and backend support hot reload
