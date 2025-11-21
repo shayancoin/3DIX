@@ -5,8 +5,9 @@ import { useSearchParams } from 'next/navigation';
 import { LayoutCanvas } from '@/components/layout/LayoutCanvas';
 import { VibePanel } from '@/components/vibe/VibePanel';
 import { JobProgress } from '@/components/jobs/JobProgress';
+import { SemanticMapViewer } from '@/components/layout/SemanticMapViewer';
 import { useJobPolling } from '@/hooks/useJobPolling';
-import { LayoutCanvasState, VibeSpec, RoomType, SceneObject2D } from '@3dix/types';
+import { LayoutCanvasState, VibeSpec, RoomType, SceneObject2D, LayoutObject } from '@3dix/types';
 
 export default function StudioPage() {
   const searchParams = useSearchParams();
@@ -21,6 +22,10 @@ export default function StudioPage() {
   const [initialObjects, setInitialObjects] = useState<SceneObject2D[]>([]);
   const [currentJobId, setCurrentJobId] = useState<number | null>(null);
   const [roomIdNum, setRoomIdNum] = useState<number | null>(null);
+  const [layoutObjects, setLayoutObjects] = useState<LayoutObject[]>([]);
+  const [semanticMapUrl, setSemanticMapUrl] = useState<string | undefined>();
+  const [selectedLayoutObjectId, setSelectedLayoutObjectId] = useState<string | undefined>();
+  const [viewMode, setViewMode] = useState<'canvas' | 'semantic'>('canvas');
 
   const { job, loading: jobLoading } = useJobPolling(currentJobId);
 
@@ -72,24 +77,36 @@ export default function StudioPage() {
     setCurrentJobId(jobId);
   };
 
-  // Update canvas when job completes
+  // Update canvas and semantic map when job completes
   useEffect(() => {
-    if (job?.status === 'completed' && job.responseData?.objects) {
-      // Convert 3D layout objects to 2D scene objects for canvas
-      const sceneObjects = job.responseData.objects.map((obj: any, index: number) => ({
-        id: obj.id || `obj-${index}`,
-        category: obj.category,
-        position: { x: obj.position[0], y: obj.position[2] }, // Use x and z for 2D
-        size: { width: obj.size[0], height: obj.size[2] },
-        boundingBox: {
-          x: obj.position[0],
-          y: obj.position[2],
-          width: obj.size[0],
-          height: obj.size[2],
-        },
-        label: obj.category,
-      }));
-      setInitialObjects(sceneObjects);
+    if (job?.status === 'completed' && job.responseData) {
+      const responseData = job.responseData;
+      
+      // Store layout objects
+      if (responseData.objects) {
+        setLayoutObjects(responseData.objects);
+        
+        // Convert 3D layout objects to 2D scene objects for canvas
+        const sceneObjects = responseData.objects.map((obj: any, index: number) => ({
+          id: obj.id || `obj-${index}`,
+          category: obj.category,
+          position: { x: obj.position[0], y: obj.position[2] }, // Use x and z for 2D
+          size: { width: obj.size[0], height: obj.size[2] },
+          boundingBox: {
+            x: obj.position[0],
+            y: obj.position[2],
+            width: obj.size[0],
+            height: obj.size[2],
+          },
+          label: obj.category,
+        }));
+        setInitialObjects(sceneObjects);
+      }
+
+      // Store semantic map
+      if (responseData.semanticMap || responseData.mask) {
+        setSemanticMapUrl(responseData.semanticMap || responseData.mask);
+      }
     }
   }, [job]);
 
@@ -124,12 +141,51 @@ export default function StudioPage() {
               <JobProgress job={job} loading={jobLoading} />
             </div>
           )}
-          <LayoutCanvas
-            initialObjects={initialObjects}
-            roomWidth={roomWidth}
-            roomLength={roomLength}
-            onStateChange={handleCanvasStateChange}
-          />
+          
+          {/* View Mode Toggle */}
+          <div className="p-2 border-b bg-white flex gap-2">
+            <button
+              onClick={() => setViewMode('canvas')}
+              className={`px-3 py-1 text-sm rounded ${
+                viewMode === 'canvas'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              2D Canvas
+            </button>
+            <button
+              onClick={() => setViewMode('semantic')}
+              className={`px-3 py-1 text-sm rounded ${
+                viewMode === 'semantic'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              Semantic Map
+            </button>
+          </div>
+
+          {/* Canvas or Semantic Map View */}
+          {viewMode === 'canvas' ? (
+            <LayoutCanvas
+              initialObjects={initialObjects}
+              roomWidth={roomWidth}
+              roomLength={roomLength}
+              onStateChange={handleCanvasStateChange}
+            />
+          ) : (
+            <div className="flex-1 relative min-h-0 p-4">
+              <SemanticMapViewer
+                semanticMapUrl={semanticMapUrl}
+                objects={layoutObjects}
+                roomWidth={roomWidth}
+                roomLength={roomLength}
+                onObjectClick={setSelectedLayoutObjectId}
+                selectedObjectId={selectedLayoutObjectId}
+              />
+            </div>
+          )}
         </div>
         <div className="w-80 flex-shrink-0">
           <VibePanel

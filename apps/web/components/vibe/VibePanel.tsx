@@ -65,6 +65,9 @@ export function VibePanel({
   const [referenceImageUrl, setReferenceImageUrl] = useState(initialVibeSpec?.prompt.referenceImageUrl || '');
   const [tags, setTags] = useState<VibeTag[]>(initialVibeSpec?.tags || []);
   const [sliders, setSliders] = useState<VibeSlider[]>(initialVibeSpec?.sliders || DEFAULT_SLIDERS);
+  const [maskType, setMaskType] = useState<'none' | 'room_boundary' | 'wall_mask' | 'door_window_mask'>('none');
+  const [maskImagePreview, setMaskImagePreview] = useState<string | null>(null);
+  const [maskImageBase64, setMaskImageBase64] = useState<string | null>(null);
 
   const handlePromptChange = useCallback(
     (text: string) => {
@@ -80,6 +83,24 @@ export function VibePanel({
       updateVibeSpec({ prompt: { text: prompt, referenceImageUrl: url, roomType } });
     },
     [prompt, roomType]
+  );
+
+  const handleMaskImageChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result;
+        if (typeof result === 'string') {
+          setMaskImagePreview(result);
+          setMaskImageBase64(result);
+        }
+      };
+      reader.readAsDataURL(file);
+    },
+    []
   );
 
   const handleTagToggle = useCallback(
@@ -151,6 +172,15 @@ export function VibePanel({
     setSubmitError(null);
 
     try {
+      // Prepare constraints with mask information
+      const constraints: any = {};
+      if (maskType !== 'none') {
+        constraints.maskType = maskType;
+        if (maskImageBase64) {
+          constraints.maskImage = maskImageBase64;
+        }
+      }
+
       // Create layout generation job
       const response = await fetch('/api/jobs', {
         method: 'POST',
@@ -162,6 +192,7 @@ export function VibePanel({
           requestData: {
             roomId: roomId.toString(),
             vibeSpec,
+            constraints: Object.keys(constraints).length > 0 ? constraints : undefined,
           },
         }),
       });
@@ -213,6 +244,95 @@ export function VibePanel({
             className="mt-2"
           />
         </div>
+
+        {/* Mask Type Section */}
+        <div>
+          <Label>Conditioning Mask Type</Label>
+          <div className="mt-2 space-y-2">
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="radio"
+                name="maskType"
+                value="none"
+                checked={maskType === 'none'}
+                onChange={(e) => setMaskType(e.target.value as any)}
+                className="w-4 h-4"
+              />
+              <span className="text-sm">None (No conditioning)</span>
+            </label>
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="radio"
+                name="maskType"
+                value="room_boundary"
+                checked={maskType === 'room_boundary'}
+                onChange={(e) => setMaskType(e.target.value as any)}
+                className="w-4 h-4"
+              />
+              <span className="text-sm">Room Boundary</span>
+            </label>
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="radio"
+                name="maskType"
+                value="wall_mask"
+                checked={maskType === 'wall_mask'}
+                onChange={(e) => setMaskType(e.target.value as any)}
+                className="w-4 h-4"
+              />
+              <span className="text-sm">Wall Mask</span>
+            </label>
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="radio"
+                name="maskType"
+                value="door_window_mask"
+                checked={maskType === 'door_window_mask'}
+                onChange={(e) => setMaskType(e.target.value as any)}
+                className="w-4 h-4"
+              />
+              <span className="text-sm">Door/Window Mask</span>
+            </label>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Select the type of conditioning mask to use for layout generation
+          </p>
+        </div>
+
+        {/* Mask Image Upload */}
+        {(maskType === 'room_boundary' || maskType === 'wall_mask' || maskType === 'door_window_mask') && (
+          <div>
+            <Label htmlFor="maskImage">Upload Mask Image (optional)</Label>
+            <input
+              id="maskImage"
+              type="file"
+              accept="image/*"
+              onChange={handleMaskImageChange}
+              className="mt-2 w-full text-sm"
+            />
+            {maskImagePreview && (
+              <div className="mt-2">
+                <img
+                  src={maskImagePreview}
+                  alt="Mask preview"
+                  className="max-w-full h-32 object-contain border rounded"
+                />
+                <button
+                  onClick={() => {
+                    setMaskImagePreview(null);
+                    setMaskImageBase64(null);
+                  }}
+                  className="mt-1 text-xs text-red-600 hover:text-red-800"
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              Upload a mask image to condition the layout generation
+            </p>
+          </div>
+        )}
 
         {/* Tags Section */}
         <div>

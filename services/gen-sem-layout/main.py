@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import uvicorn
 import time
+import os
+from semlayoutdiff_integration import SemLayoutDiffIntegration
 
 app = FastAPI(
     title="3DIX Layout Generation Service",
@@ -23,6 +25,17 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# Initialize SemLayoutDiff integration
+sldn_checkpoint = os.getenv("SLDN_CHECKPOINT_PATH")
+apm_checkpoint = os.getenv("APM_CHECKPOINT_PATH")
+config_path = os.getenv("SEMLAYOUTDIFF_CONFIG_PATH")
+
+semlayoutdiff = SemLayoutDiffIntegration(
+    sldn_checkpoint_path=sldn_checkpoint,
+    apm_checkpoint_path=apm_checkpoint,
+    config_path=config_path
 )
 
 
@@ -133,15 +146,11 @@ async def generate_layout(request: LayoutRequest):
     """
     Generate a semantic room layout based on vibe specification.
     
-    This is a stub implementation that simulates layout generation.
-    In Step 5, this will be replaced with real SemLayoutDiff inference.
+    This uses SemLayoutDiff for real layout generation when models are available,
+    otherwise falls back to stub generation.
     """
     start_time = time.time()
     
-    # Simulate processing time
-    await asyncio.sleep(0.5)
-    
-    # Generate stub layout objects based on room type
     room_type = request.vibeSpec.prompt.roomType
     room_dims = request.constraints.roomDimensions if request.constraints else None
     
@@ -149,128 +158,75 @@ async def generate_layout(request: LayoutRequest):
     width = room_dims.width if room_dims else 5.0
     length = room_dims.length if room_dims else 4.0
     
-    # Generate objects based on room type
-    objects = generate_stub_objects(room_type, width, length)
+    # Extract floor plan mask if provided
+    floor_plan_mask = None
+    if request.constraints and request.constraints.maskImage:
+        # Decode base64 mask image
+        import base64
+        from PIL import Image
+        import io
+        import numpy as np
+        
+        try:
+            mask_data = request.constraints.maskImage.split(',')[1] if ',' in request.constraints.maskImage else request.constraints.maskImage
+            mask_bytes = base64.b64decode(mask_data)
+            mask_img = Image.open(io.BytesIO(mask_bytes)).convert('L')
+            floor_plan_mask = np.array(mask_img)
+        except Exception as e:
+            print(f"Warning: Failed to decode mask image: {e}")
+    
+    # Generate semantic layout using SemLayoutDiff
+    semantic_map, layout_metadata = semlayoutdiff.generate_semantic_layout(
+        room_type=room_type,
+        floor_plan_mask=floor_plan_mask,
+        num_samples=1
+    )
+    
+    # Predict 3D attributes from semantic map
+    attribute_predictions = semlayoutdiff.predict_attributes(
+        semantic_map=semantic_map,
+        room_type=room_type
+    )
+    
+    # Convert predictions to LayoutObject format
+    objects = []
+    for i, pred in enumerate(attribute_predictions):
+        objects.append(
+            LayoutObject(
+                id=f"obj-{i+1}",
+                category=pred["category"],
+                position=pred["position"],
+                size=pred["size"],
+                orientation=pred["orientation"],
+                metadata={
+                    "source": "semlayoutdiff" if semlayoutdiff.initialized else "stub"
+                }
+            )
+        )
+    
+    # Convert semantic map to base64 for response
+    semantic_map_b64 = semlayoutdiff.semantic_map_to_base64(semantic_map)
     
     processing_time = time.time() - start_time
     
     return LayoutResponse(
-        jobId=request.roomId,  # Using roomId as jobId for stub
+        jobId=request.roomId,
         status="completed",
+        mask=semantic_map_b64,
+        semanticMap=semantic_map_b64,
         objects=objects,
         metadata={
             "processingTime": processing_time,
-            "modelVersion": "stub-v1.0",
+            "modelVersion": "semlayoutdiff-v1.0" if semlayoutdiff.initialized else "stub-v1.0",
             "roomType": room_type,
+            "layoutMetadata": layout_metadata,
         }
     )
 
 
-def generate_stub_objects(room_type: str, width: float, length: float) -> List[LayoutObject]:
-    """Generate stub layout objects based on room type."""
-    objects = []
-    
-    if room_type == "kitchen":
-        objects = [
-            LayoutObject(
-                id="obj-1",
-                category="refrigerator",
-                position=[0.5, 0.0, 0.3],
-                size=[0.6, 1.8, 0.6],
-                orientation=0.0,
-            ),
-            LayoutObject(
-                id="obj-2",
-                category="sink",
-                position=[width * 0.4, 0.0, length * 0.5],
-                size=[0.6, 0.3, 0.6],
-                orientation=1.57,
-            ),
-            LayoutObject(
-                id="obj-3",
-                category="stove",
-                position=[width * 0.7, 0.0, length * 0.5],
-                size=[0.6, 0.3, 0.6],
-                orientation=1.57,
-            ),
-            LayoutObject(
-                id="obj-4",
-                category="cabinet",
-                position=[width * 0.2, 0.0, length * 0.3],
-                size=[1.0, 0.9, 0.6],
-                orientation=0.0,
-            ),
-        ]
-    elif room_type == "bathroom":
-        objects = [
-            LayoutObject(
-                id="obj-1",
-                category="toilet",
-                position=[width * 0.3, 0.0, length * 0.2],
-                size=[0.4, 0.4, 0.7],
-                orientation=1.57,
-            ),
-            LayoutObject(
-                id="obj-2",
-                category="sink",
-                position=[width * 0.7, 0.0, length * 0.3],
-                size=[0.5, 0.3, 0.5],
-                orientation=0.0,
-            ),
-            LayoutObject(
-                id="obj-3",
-                category="shower",
-                position=[width * 0.2, 0.0, length * 0.7],
-                size=[0.8, 2.0, 0.8],
-                orientation=0.0,
-            ),
-        ]
-    elif room_type == "bedroom":
-        objects = [
-            LayoutObject(
-                id="obj-1",
-                category="bed",
-                position=[width * 0.5, 0.0, length * 0.4],
-                size=[2.0, 0.5, 1.8],
-                orientation=0.0,
-            ),
-            LayoutObject(
-                id="obj-2",
-                category="dresser",
-                position=[width * 0.2, 0.0, length * 0.2],
-                size=[1.2, 1.0, 0.5],
-                orientation=1.57,
-            ),
-            LayoutObject(
-                id="obj-3",
-                category="nightstand",
-                position=[width * 0.8, 0.0, length * 0.3],
-                size=[0.5, 0.5, 0.5],
-                orientation=0.0,
-            ),
-        ]
-    else:
-        # Default generic objects
-        objects = [
-            LayoutObject(
-                id="obj-1",
-                category="furniture",
-                position=[width * 0.3, 0.0, length * 0.3],
-                size=[1.0, 0.5, 1.0],
-                orientation=0.0,
-            ),
-            LayoutObject(
-                id="obj-2",
-                category="furniture",
-                position=[width * 0.7, 0.0, length * 0.7],
-                size=[1.0, 0.5, 1.0],
-                orientation=1.57,
-            ),
-        ]
-    
-    return objects
 
 
 if __name__ == "__main__":
     import asyncio
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    port = int(os.getenv("PORT", 8001))
+    uvicorn.run(app, host="0.0.0.0", port=port)
