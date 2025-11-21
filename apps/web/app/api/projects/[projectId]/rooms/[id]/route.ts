@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTeamForUser, getRoom, updateRoom, deleteRoom } from '@/lib/db/queries';
-import { getUser } from '@/lib/db/queries';
-import { getProjectWithRooms } from '@/lib/db/queries';
-import { RoomType } from '@/lib/db/schema';
+import {
+  getTeamForUser,
+  getRoom,
+  updateRoom,
+  deleteRoom,
+  getUser,
+  getProjectWithRooms,
+} from '@/lib/db/queries';
+import { ROOM_TYPES } from '@3dix/types';
 import { z } from 'zod';
+import { mapRoomFromDb, mapClientRoomType } from '@/lib/db/roomTypeMapping';
+
+const clientRoomTypeSchema = z.enum(ROOM_TYPES);
 
 const updateRoomSchema = z.object({
   name: z.string().min(1).max(255).optional(),
-  roomType: z.nativeEnum(RoomType).optional(),
+  roomType: clientRoomTypeSchema.optional(),
   width: z.number().positive().optional().nullable(),
   height: z.number().positive().optional().nullable(),
   length: z.number().positive().optional().nullable(),
@@ -52,7 +60,7 @@ export async function GET(
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
-    return NextResponse.json(room);
+    return NextResponse.json(mapRoomFromDb(room));
   } catch (error) {
     console.error('Error fetching room:', error);
     return NextResponse.json(
@@ -94,12 +102,19 @@ export async function PATCH(
     const body = await req.json();
     const validatedData = updateRoomSchema.parse(body);
 
-    const room = await updateRoom(roomId, projectIdNum, validatedData);
+    const updatePayload = {
+      ...validatedData,
+      roomType: validatedData.roomType
+        ? mapClientRoomType(validatedData.roomType)
+        : undefined,
+    };
+
+    const room = await updateRoom(roomId, projectIdNum, updatePayload);
     if (!room) {
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
-    return NextResponse.json(room);
+    return NextResponse.json(mapRoomFromDb(room));
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

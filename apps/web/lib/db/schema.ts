@@ -8,6 +8,7 @@ import {
   jsonb,
   boolean,
   real,
+  uuid,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -153,8 +154,7 @@ export enum RoomType {
   BEDROOM = 'bedroom',
   LIVING_ROOM = 'living_room',
   DINING_ROOM = 'dining_room',
-  OFFICE = 'office',
-  OTHER = 'other',
+  CUSTOM = 'custom',
 }
 
 export const projects = pgTable('projects', {
@@ -196,6 +196,15 @@ export const rooms = pgTable('rooms', {
     .references(() => users.id),
 });
 
+export const roomGenerations = pgTable('room_generations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  roomId: integer('room_id')
+    .notNull()
+    .references(() => rooms.id, { onDelete: 'cascade' }),
+  vibeSpec: jsonb('vibe_spec'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
 // Relations
 export const projectsRelations = relations(projects, ({ one, many }) => ({
   team: one(teams, {
@@ -209,7 +218,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   rooms: many(rooms),
 }));
 
-export const roomsRelations = relations(rooms, ({ one }) => ({
+export const roomsRelations = relations(rooms, ({ one, many }) => ({
   project: one(projects, {
     fields: [rooms.projectId],
     references: [projects.id],
@@ -218,6 +227,14 @@ export const roomsRelations = relations(rooms, ({ one }) => ({
     fields: [rooms.createdBy],
     references: [users.id],
   }),
+  generations: many(roomGenerations),
+}));
+
+export const roomGenerationsRelations = relations(roomGenerations, ({ one }) => ({
+  room: one(rooms, {
+    fields: [roomGenerations.roomId],
+    references: [rooms.id],
+  }),
 }));
 
 // Type exports
@@ -225,6 +242,8 @@ export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type Room = typeof rooms.$inferSelect;
 export type NewRoom = typeof rooms.$inferInsert;
+export type RoomGeneration = typeof roomGenerations.$inferSelect;
+export type NewRoomGeneration = typeof roomGenerations.$inferInsert;
 
 export type ProjectWithRooms = Project & {
   rooms: Room[];

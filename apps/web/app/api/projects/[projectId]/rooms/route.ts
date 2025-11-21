@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTeamForUser, getRoomsForProject, createRoom } from '@/lib/db/queries';
-import { getUser } from '@/lib/db/queries';
-import { getProjectWithRooms } from '@/lib/db/queries';
-import { RoomType } from '@/lib/db/schema';
+import {
+  getTeamForUser,
+  getRoomsForProject,
+  createRoom,
+  getUser,
+  getProjectWithRooms,
+} from '@/lib/db/queries';
+import { ROOM_TYPES } from '@3dix/types';
 import { z } from 'zod';
+import {
+  mapRoomsFromDb,
+  mapRoomFromDb,
+  mapClientRoomType,
+} from '@/lib/db/roomTypeMapping';
+
+const clientRoomTypeSchema = z.enum(ROOM_TYPES);
 
 const createRoomSchema = z.object({
   name: z.string().min(1).max(255),
-  roomType: z.nativeEnum(RoomType),
+  roomType: clientRoomTypeSchema,
   width: z.number().positive().optional(),
   height: z.number().positive().optional(),
   length: z.number().positive().optional(),
@@ -42,7 +53,7 @@ export async function GET(
     }
 
     const rooms = await getRoomsForProject(projectIdNum);
-    return NextResponse.json(rooms);
+    return NextResponse.json(mapRoomsFromDb(rooms));
   } catch (error) {
     console.error('Error fetching rooms:', error);
     return NextResponse.json(
@@ -86,14 +97,14 @@ export async function POST(
     const room = await createRoom({
       projectId: projectIdNum,
       name: validatedData.name,
-      roomType: validatedData.roomType,
+      roomType: mapClientRoomType(validatedData.roomType),
       width: validatedData.width || null,
       height: validatedData.height || null,
       length: validatedData.length || null,
       createdBy: user.id,
     });
 
-    return NextResponse.json(room, { status: 201 });
+    return NextResponse.json(mapRoomFromDb(room), { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
