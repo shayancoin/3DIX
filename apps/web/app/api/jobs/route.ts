@@ -18,6 +18,11 @@ const createJobSchema = z.object({
   archMaskUrl: z.string().url().optional(),
 });
 
+/**
+ * Create a new layout job for a room after validating the authenticated user, team membership, and request payload.
+ *
+ * @returns The created job object with HTTP 201 on success. On error returns a JSON object containing an `error` message (validation errors include a `details` array) and an appropriate HTTP status code (400, 401, 403, 404, or 500).
+ */
 export async function POST(req: NextRequest) {
   try {
     const user = await getUser();
@@ -84,6 +89,19 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/**
+ * Handle GET requests to list layout jobs for a room, enforcing authentication and team ownership.
+ *
+ * Returns an HTTP JSON response describing the result:
+ * - 200: an array of layout jobs for the specified room.
+ * - 400: when `roomId` is missing or invalid.
+ * - 401: when the requester is not authenticated.
+ * - 403: when the room does not belong to the requester's team.
+ * - 404: when the specified room is not found.
+ * - 500: on unexpected server errors.
+ *
+ * @returns A NextResponse containing either the jobs array on success or an `{ error: string }` object with an appropriate HTTP status on failure.
+ */
 export async function GET(req: NextRequest) {
   try {
     const user = await getUser();

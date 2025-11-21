@@ -20,6 +20,15 @@ const CATEGORY_COLORS: Record<string, string> = {
   default: '#6C757D',
 };
 
+/**
+ * Renders a single scene object as a positioned, rotated 3D representation with optional asset, selection outline, and label.
+ *
+ * @param object - Scene object data; uses `position`, `size`, `orientation`, `category`, and optional `mesh_url` to determine placement, scale, rotation, color, and asset loading.
+ * @param selected - Whether the object is currently selected; selected objects show a blue outline, blue emissive material, and a subtle rotation.
+ * @param onClick - Click handler invoked when the object's group is clicked (receives the Three.js pointer event).
+ * @param quality - Render quality flag; when `'low'`, external GLTF assets are suppressed and only the box primitive is shown.
+ * @returns A React Three Fiber group containing the box mesh (and optional GLTF AssetMesh), a selection outline when selected, and a text label above the object.
+ */
 function ObjectMesh({
   object,
   selected,
@@ -79,6 +88,15 @@ function ObjectMesh({
   );
 }
 
+/**
+ * Renders a GLTF model from `meshUrl`, scaled and positioned to match `targetSize`.
+ *
+ * Fits the loaded scene to the provided width/height/depth and returns a React primitive that inserts the adjusted 3D scene into the render tree.
+ *
+ * @param meshUrl - URL of the GLTF asset to load
+ * @param targetSize - Target [width, height, depth] the model should be scaled to fit
+ * @returns The JSX element rendering the fitted 3D scene
+ */
 function AssetMesh({ meshUrl, targetSize }: { meshUrl: string; targetSize: [number, number, number] }) {
   const gltf = useGLTF(meshUrl, true);
   const scene = useMemo(() => gltf.scene.clone(true), [gltf.scene]);
@@ -105,6 +123,16 @@ function AssetMesh({ meshUrl, targetSize }: { meshUrl: string; targetSize: [numb
 }
 useGLTF.preload('https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF-Binary/Box.glb');
 
+/**
+ * Renders the 3D scene contents including camera controls, lighting, grid, ground plane, and object meshes.
+ *
+ * @param objects - Array of scene objects to render as meshes and labels
+ * @param roomOutline - Optional array of [x, z] coordinates used to compute scene bounds; defaults are used when omitted or empty
+ * @param selectedId - Optional id of the currently selected object
+ * @param onSelect - Optional callback invoked with an object id to select or `null` to clear selection
+ * @param quality - Rendering quality hint; affects whether detailed GLTF assets are used ('low' | 'medium' | 'high')
+ * @returns A JSX fragment that places OrbitControls, lights, a grid, a clickable ground plane, and an ObjectMesh for each object
+ */
 function SceneContents({
   objects,
   roomOutline,
@@ -177,6 +205,12 @@ function SceneContents({
   );
 }
 
+/**
+ * Render a 3D layout scene or a centered placeholder if there are no objects.
+ *
+ * @param props - LayoutScene3DProps controlling which objects, room outline, selection, and render quality to display
+ * @returns A React element that is either a Canvas containing the scene (with lights, controls, ground, and object meshes) or a full-size placeholder div with the text "No objects to render"
+ */
 export function LayoutScene3D(props: LayoutScene3DProps) {
   const { objects } = props;
   if (!objects || objects.length === 0) {

@@ -11,11 +11,9 @@ import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 /**
- * Render a page with a form to create a new room for the current project.
+ * Render the "Create New Room" page with a form to add a room to the current project.
  *
- * The component manages local form state for name, type, width, length, and height,
- * submits a POST request to the rooms API on submit, displays server or client
- * errors, and navigates to the created room's page on success.
+ * Submits the form to the rooms API, displays server or client errors, and navigates to the newly created room on success.
  *
  * @returns The JSX element for the New Room page.
  */

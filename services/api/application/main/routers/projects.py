@@ -7,13 +7,13 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 @router.post("/", response_model=Project, status_code=status.HTTP_201_CREATED)
 async def create_project(request: Request, project_in: ProjectCreate):
     """
-    Create a new project and persist it to the projects collection.
+    Create and persist a new Project from the provided input data.
     
     Parameters:
-        project_in (ProjectCreate): Input data used to construct the new project.
+        project_in (ProjectCreate): Data used to construct the new Project.
     
     Returns:
-        Project: The created Project instance, including its persisted identifier.
+        Project: The created Project instance including its persisted identifier.
     """
     project = Project(**project_in.dict())
     # Use insert_single_db_record. Note: It expects a dict and returns an InsertOneResult
@@ -90,20 +90,20 @@ async def get_project(request: Request, project_id: str):
 @router.put("/{project_id}", response_model=Project)
 async def update_project(request: Request, project_id: str, project_in: ProjectUpdate):
     """
-    Update fields of an existing project and return the updated project.
+    Apply provided updates to an existing project and return the updated project.
     
-    Only the fields provided in `project_in` are applied; when any change is made the project's `updated_at`
+    Only fields present in `project_in` are applied; if any changes are made the project's `updated_at`
     timestamp is set to the current UTC time.
     
     Parameters:
-    	project_id (str): Identifier of the project to update.
-    	project_in (ProjectUpdate): Partial project data containing fields to change.
+        project_id (str): Identifier of the project to update.
+        project_in (ProjectUpdate): Partial project data containing fields to change.
     
     Returns:
-    	Project: The project representation after applying the updates.
+        Project: The project representation after applying the updates.
     
     Raises:
-    	HTTPException: 404 if no project with `project_id` exists.
+        HTTPException: 404 if no project with `project_id` exists.
     """
     project_data = await request.app.state.db_operations.find_one("projects", {"_id": project_id})
     if not project_data:
@@ -121,6 +121,9 @@ async def update_project(request: Request, project_id: str, project_in: ProjectU
 async def delete_project(request: Request, project_id: str):
     """
     Delete a project by its identifier.
+    
+    Parameters:
+        project_id (str): The unique identifier of the project to delete.
     
     Raises:
         HTTPException: 404 if no project with the given `project_id` exists.

@@ -48,6 +48,15 @@ const createLayoutJobSchema = z.object({
     .optional(),
 });
 
+/**
+ * Create a layout generation job for a room and return the job's id and status.
+ *
+ * Validates the request body, verifies user and team membership, ensures the room
+ * belongs to the team, transforms the provided vibe spec, and enqueues a job.
+ *
+ * @param req - Incoming request whose JSON body must include `room_id`, `vibe_spec`, and optional `constraints` (`arch_mask_url`, `mask_type`, `seed`)
+ * @returns The created job's identifier and current status: `{ job_id: number, status: string }`. On failure the response body contains an `error` object with `code` and `message` (and `details` for validation errors).
+ */
 export async function POST(req: NextRequest) {
   try {
     const user = await getUser();
@@ -110,6 +119,11 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/**
+ * Indicates that listing layout jobs via this endpoint is not implemented and directs clients to the correct endpoint.
+ *
+ * @returns A JSON response containing an `error` object with `code` set to `"NOT_IMPLEMENTED"` and `message` set to `"List jobs via /api/jobs?roomId=<id>"`, returned with HTTP status 400.
+ */
 export async function GET(req: NextRequest) {
   return NextResponse.json({ error: { code: 'NOT_IMPLEMENTED', message: 'List jobs via /api/jobs?roomId=<id>' } }, { status: 400 });
 }

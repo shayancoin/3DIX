@@ -18,13 +18,18 @@ class LayoutService:
 
     async def generate_layout(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Call the ML service to generate a layout.
+        Request a layout from the ML service using the provided request payload.
         
-        Args:
-            request_data: LayoutRequest data
-            
+        Sends `request_data` as JSON to the service's /generate-layout endpoint and returns the service's JSON response parsed to a dictionary.
+        
+        Parameters:
+            request_data (Dict[str, Any]): Payload describing the layout request to send to the ML service.
+        
         Returns:
-            LayoutResponse from ML service
+            Dict[str, Any]: Parsed JSON response from the ML layout service.
+        
+        Raises:
+            Exception: If the HTTP request fails; the exception message is prefixed with "ML service error:" and wraps the underlying httpx.HTTPError.
         """
         async with httpx.AsyncClient(timeout=300.0) as client:
             try:

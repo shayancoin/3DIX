@@ -25,15 +25,14 @@ interface VibePanelProps {
 }
 
 /**
- * Render a control panel for editing a VibeSpec and triggering layout generation.
+ * Panel UI for editing a vibe (prompt, keywords, and style sliders), adjusting mask controls, and triggering layout generation.
  *
- * Provides controls to edit the vibe prompt, add/remove keyword tags, adjust style sliders
- * (minimalism, vintage, colorful), and trigger generation.
- *
- * @param vibe - Current VibeSpec state shown and edited by the panel
- * @param onVibeUpdate - Callback invoked with an updated VibeSpec when the user changes prompt, keywords, or sliders
+ * @param vibe - Current vibe state containing the prompt, keyword tags, and style slider values
+ * @param onVibeUpdate - Callback invoked with an updated VibeFormState when the prompt, keywords, or style sliders change
+ * @param maskControls - Current mask controls state rendered by the MaskControls component
+ * @param onMaskChange - Callback invoked when the mask controls change
  * @param onGenerate - Callback invoked when the user clicks the generate button
- * @param isGenerating - When true, disables the generate button and shows progress text
+ * @param isGenerating - When true, disables the generate button and updates its label to indicate progress
  * @returns The React element for the VibePanel UI
  */
 export function VibePanel({ vibe, onVibeUpdate, maskControls, onMaskChange, onGenerate, isGenerating }: VibePanelProps) {
