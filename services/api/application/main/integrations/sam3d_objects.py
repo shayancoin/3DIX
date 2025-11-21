@@ -10,7 +10,19 @@ async def reconstruct_custom_object(
     mask: Optional[List[List[int]]] = None
 ) -> Dict[str, Any]:
     """
-    Call the gen-sam3d-objects service to reconstruct a 3D mesh from an image.
+    Reconstruct a 3D mesh for an object in the given image using the SAM3D service.
+    
+    Parameters:
+        image_url (str): URL of the source image containing the object.
+        category_hint (str): Text hint for the object's category to guide reconstruction.
+        target_size (List[float]): Desired object size as [width, height, depth] (units as expected by the service).
+        mask (Optional[List[List[int]]]): Optional 2D mask array (e.g., binary values) indicating the object region in the image.
+    
+    Returns:
+        Dict[str, Any]: Parsed JSON response from the SAM3D service describing the reconstructed mesh and metadata.
+    
+    Raises:
+        httpx.HTTPStatusError: If the SAM3D service responds with a non-success HTTP status.
     """
     payload = {
         "image_url": image_url,

@@ -7,6 +7,11 @@ API_URL = "http://localhost:8005/api/v1"
 SAM3D_URL = "http://localhost:8004"
 
 def test_sam3d_service_direct():
+    """
+    Verify that the SAM-3D reconstruction service returns mesh and preview URLs for a sample image.
+    
+    Sends a reconstruction request for a sample image with a category hint and target size, asserts that the response JSON contains the keys "mesh_url" and "preview_png_url", and exits the process with status 1 if the check fails.
+    """
     print("Testing SAM-3D Service Direct...")
     try:
         payload = {
@@ -25,6 +30,11 @@ def test_sam3d_service_direct():
         sys.exit(1)
 
 def test_api_integration():
+    """
+    Test API integration for generating a custom mesh from an image.
+    
+    Sends a request to the platform API's custom-mesh endpoint for a test room/object and asserts the response includes `mesh_url` and `preview_png_url`; also verifies the returned `mesh_url` contains "Duck.glb". Exits the process with a non-zero status if the test fails.
+    """
     print("\nTesting API Integration...")
     room_id = "test_room"
     object_id = "test_obj"

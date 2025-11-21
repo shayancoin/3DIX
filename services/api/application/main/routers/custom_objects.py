@@ -26,6 +26,20 @@ async def create_custom_mesh(
     # 3. Update the object in DB with the new mesh_url
 
     # For now, we'll mock the object data
+    """
+    Create a custom 3D mesh for a specific object in a room from an input image and optional mask.
+    
+    Parameters:
+        room_id (str): Identifier of the room containing the object.
+        object_id (str): Identifier of the object to update with the generated mesh.
+        request (CustomMeshRequest): Input data including `image_url` and optional `mask` used to reconstruct the mesh.
+    
+    Returns:
+        CustomMeshResponse: Contains `mesh_url` for the generated 3D mesh and optional `preview_png_url`.
+    
+    Raises:
+        HTTPException: With status code 500 if mesh reconstruction fails.
+    """
     mock_category = "chair"
     mock_target_size = [0.5, 1.0, 0.5]
 
