@@ -6,6 +6,7 @@ import { LayoutCanvas } from '@/components/layout/LayoutCanvas';
 import { VibePanel } from '@/components/vibe/VibePanel';
 import { JobProgress } from '@/components/jobs/JobProgress';
 import { SemanticMapViewer } from '@/components/layout/SemanticMapViewer';
+import { CanvasShell, LayoutScene3D } from '@3dix/three';
 import { useJobPolling } from '@/hooks/useJobPolling';
 import { LayoutCanvasState, VibeSpec, RoomType, SceneObject2D, LayoutObject } from '@3dix/types';
 
@@ -25,7 +26,50 @@ export default function StudioPage() {
   const [layoutObjects, setLayoutObjects] = useState<LayoutObject[]>([]);
   const [semanticMapUrl, setSemanticMapUrl] = useState<string | undefined>();
   const [selectedLayoutObjectId, setSelectedLayoutObjectId] = useState<string | undefined>();
-  const [viewMode, setViewMode] = useState<'canvas' | 'semantic'>('canvas');
+  const [selectedCanvasObjectId, setSelectedCanvasObjectId] = useState<string | undefined>();
+  const [viewMode, setViewMode] = useState<'canvas' | 'semantic' | '3d'>('canvas');
+  
+  // Sync selection between 2D and 3D views
+  const handleObjectSelect = useCallback((objectId: string | undefined, source: '2d' | '3d' | 'semantic') => {
+    if (source === '2d') {
+      setSelectedCanvasObjectId(objectId);
+      // Find corresponding layout object
+      if (objectId) {
+        const canvasObj = canvasState?.objects.find((o) => o.id === objectId);
+        if (canvasObj) {
+          // Find matching layout object by category and approximate position
+          const layoutObj = layoutObjects.find((lo) => {
+            const dx = Math.abs(lo.position[0] - canvasObj.position.x);
+            const dz = Math.abs(lo.position[2] - canvasObj.position.y);
+            return lo.category === canvasObj.category && dx < 0.5 && dz < 0.5;
+          });
+          if (layoutObj) {
+            setSelectedLayoutObjectId(layoutObj.id);
+          }
+        }
+      } else {
+        setSelectedLayoutObjectId(undefined);
+      }
+    } else if (source === '3d' || source === 'semantic') {
+      setSelectedLayoutObjectId(objectId);
+      // Find corresponding canvas object
+      if (objectId) {
+        const layoutObj = layoutObjects.find((lo) => lo.id === objectId);
+        if (layoutObj) {
+          const canvasObj = canvasState?.objects.find((co) => {
+            const dx = Math.abs(co.position.x - layoutObj.position[0]);
+            const dy = Math.abs(co.position.y - layoutObj.position[2]);
+            return co.category === layoutObj.category && dx < 0.5 && dy < 0.5;
+          });
+          if (canvasObj) {
+            setSelectedCanvasObjectId(canvasObj.id);
+          }
+        }
+      } else {
+        setSelectedCanvasObjectId(undefined);
+      }
+    }
+  }, [canvasState, layoutObjects]);
 
   const { job, loading: jobLoading } = useJobPolling(currentJobId);
 
@@ -112,6 +156,10 @@ export default function StudioPage() {
 
   const handleCanvasStateChange = (state: LayoutCanvasState) => {
     setCanvasState(state);
+    // Sync selection
+    if (state.selectedObjectId !== selectedCanvasObjectId) {
+      handleObjectSelect(state.selectedObjectId, '2d');
+    }
     // TODO: Auto-save canvas state to room
   };
 
@@ -164,26 +212,52 @@ export default function StudioPage() {
             >
               Semantic Map
             </button>
+            <button
+              onClick={() => setViewMode('3d')}
+              className={`px-3 py-1 text-sm rounded ${
+                viewMode === '3d'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+            >
+              3D View
+            </button>
           </div>
 
-          {/* Canvas or Semantic Map View */}
+          {/* Canvas, Semantic Map, or 3D View */}
           {viewMode === 'canvas' ? (
             <LayoutCanvas
               initialObjects={initialObjects}
               roomWidth={roomWidth}
               roomLength={roomLength}
               onStateChange={handleCanvasStateChange}
+              selectedObjectId={selectedCanvasObjectId}
+              onObjectSelect={(id) => handleObjectSelect(id, '2d')}
             />
-          ) : (
+          ) : viewMode === 'semantic' ? (
             <div className="flex-1 relative min-h-0 p-4">
               <SemanticMapViewer
                 semanticMapUrl={semanticMapUrl}
                 objects={layoutObjects}
                 roomWidth={roomWidth}
                 roomLength={roomLength}
-                onObjectClick={setSelectedLayoutObjectId}
+                onObjectClick={(id) => handleObjectSelect(id, 'semantic')}
                 selectedObjectId={selectedLayoutObjectId}
               />
+            </div>
+          ) : (
+            <div className="flex-1 relative min-h-0">
+              <CanvasShell>
+                <LayoutScene3D
+                  objects={layoutObjects}
+                  roomWidth={roomWidth}
+                  roomLength={roomLength}
+                  selectedObjectId={selectedLayoutObjectId}
+                  onObjectClick={(id) => handleObjectSelect(id, '3d')}
+                  showGrid={true}
+                  showLabels={true}
+                />
+              </CanvasShell>
             </div>
           )}
         </div>

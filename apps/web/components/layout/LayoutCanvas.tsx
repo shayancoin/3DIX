@@ -11,6 +11,8 @@ interface LayoutCanvasProps {
   roomWidth?: number;
   roomLength?: number;
   onStateChange?: (state: LayoutCanvasState) => void;
+  selectedObjectId?: string;
+  onObjectSelect?: (objectId: string | undefined) => void;
 }
 
 export function LayoutCanvas({
@@ -19,27 +21,24 @@ export function LayoutCanvas({
   roomWidth = 5,
   roomLength = 4,
   onStateChange,
+  selectedObjectId,
+  onObjectSelect,
 }: LayoutCanvasProps) {
   const [objects, setObjects] = useState<SceneObject2D[]>(initialObjects);
   const [viewport, setViewport] = useState<CanvasViewport>(initialViewport);
-  const [selectedObjectId, setSelectedObjectId] = useState<string | undefined>();
+  const [internalSelectedId, setInternalSelectedId] = useState<string | undefined>(selectedObjectId);
   const { history, historyIndex, addHistoryEntry, undo, redo, canUndo, canRedo } = useSceneHistory();
+  
+  // Sync external selection
+  useEffect(() => {
+    setInternalSelectedId(selectedObjectId);
+  }, [selectedObjectId]);
 
   // Update objects when initialObjects change
   useEffect(() => {
     setObjects(initialObjects);
   }, [initialObjects]);
 
-  // Notify parent of state changes
-  useEffect(() => {
-    onStateChange?.({
-      objects,
-      viewport,
-      selectedObjectId,
-      history,
-      historyIndex,
-    });
-  }, [objects, viewport, selectedObjectId, history, historyIndex, onStateChange]);
 
   const handleObjectsChange = useCallback(
     (newObjects: SceneObject2D[]) => {
@@ -85,14 +84,27 @@ export function LayoutCanvas({
     },
     [objects, addHistoryEntry]
   );
+  
+  // Update state when notifying parent
+  useEffect(() => {
+    onStateChange?.({
+      objects,
+      viewport,
+      selectedObjectId: internalSelectedId,
+      history,
+      historyIndex,
+    });
+  }, [objects, viewport, internalSelectedId, history, historyIndex, onStateChange]);
 
   const handleViewportChange = useCallback((newViewport: CanvasViewport) => {
     setViewport(newViewport);
   }, []);
 
   const handleObjectSelect = useCallback((objectId: string | undefined) => {
-    setSelectedObjectId(objectId);
-  }, []);
+    const newSelectedId = objectId === internalSelectedId ? undefined : objectId;
+    setInternalSelectedId(newSelectedId);
+    onObjectSelect?.(newSelectedId);
+  }, [internalSelectedId, onObjectSelect]);
 
   const handleAddObject = useCallback(
     (category: string, position: { x: number; y: number }, size: { width: number; height: number }) => {
@@ -121,19 +133,20 @@ export function LayoutCanvas({
   );
 
   const handleDeleteSelected = useCallback(() => {
-    if (selectedObjectId) {
-      const objectToDelete = objects.find((o) => o.id === selectedObjectId);
+    if (internalSelectedId) {
+      const objectToDelete = objects.find((o) => o.id === internalSelectedId);
       if (objectToDelete) {
-        setObjects(objects.filter((o) => o.id !== selectedObjectId));
+        setObjects(objects.filter((o) => o.id !== internalSelectedId));
         addHistoryEntry({
           action: 'delete',
-          objectId: selectedObjectId,
+          objectId: internalSelectedId,
           previousState: objectToDelete,
         });
-        setSelectedObjectId(undefined);
+        setInternalSelectedId(undefined);
+        onObjectSelect?.(undefined);
       }
     }
-  }, [selectedObjectId, objects, addHistoryEntry]);
+  }, [internalSelectedId, objects, addHistoryEntry, onObjectSelect]);
 
   return (
     <div className="flex flex-col h-full">
@@ -145,7 +158,7 @@ export function LayoutCanvas({
           viewport={viewport}
           onObjectsChange={handleObjectsChange}
           onViewportChange={handleViewportChange}
-          selectedObjectId={selectedObjectId}
+          selectedObjectId={internalSelectedId}
           onObjectSelect={handleObjectSelect}
           roomWidth={roomWidth}
           roomLength={roomLength}
