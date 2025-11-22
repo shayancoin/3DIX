@@ -61,278 +61,89 @@ class ConstraintSolver:
     """
     Solves layout constraints based on room type configurations.
     """
-    TOLERANCE = 1e-3
 
     def __init__(self, room_config: Dict[str, Any]):
         """
-        Initialize solver with room type configuration.
-
-        Args:
-            room_config: Room type configuration dictionary
+        Create a ConstraintSolver configured for a specific room type.
+        
+        Initializes internal mappings and lists derived from the provided room configuration: category lookup by id, constraints dictionary, zones list, and layout rules list.
+        
+        Parameters:
+            room_config (Dict[str, Any]): Room type configuration dictionary containing keys like 'categories', 'constraints', and 'zones'. The constructor extracts category configs into `self.categories`, constraint data into `self.constraints`, zone definitions into `self.zones`, and layout rules into `self.layout_rules`.
         """
         self.room_config = room_config
         self.categories = {cat['id']: cat for cat in room_config.get('categories', [])}
         self.constraints = room_config.get('constraints', {})
         self.zones = room_config.get('zones', [])
         self.layout_rules = self.constraints.get('layoutRules', [])
-    def _normalized_violation(self, metric_value: float, threshold: float, direction: str = "max") -> float:
-        if threshold == 0 or threshold is None:
-            return 1.0 if metric_value > 0 else 0.0
-        if direction == "max":
-            return max(0.0, (metric_value - threshold) / abs(threshold))
-        return max(0.0, (threshold - metric_value) / abs(threshold))
 
-    def _make_violation(
-        self,
-        *,
-        violation_id: str,
-        constraint_type: str,
-        message: str,
-        severity: str,
-        metric_value: float,
-        threshold: float,
-        unit: Optional[str] = None,
-        object_ids: Optional[List[str]] = None,
-        direction: str = "max",
-    ) -> ConstraintViolation:
-        return ConstraintViolation(
-            id=violation_id,
-            constraint_type=constraint_type,
-            message=message,
-            severity=severity,
-            metric_value=metric_value,
-            threshold=threshold,
-            unit=unit,
-            normalized_violation=self._normalized_violation(metric_value, threshold, direction),
-            object_ids=object_ids or [],
-        )
+    def validate_layout(self, objects: List[LayoutObject]) -> ConstraintValidation:
+        """
+        Validate a layout against room type constraints.
 
-    def _group_objects(self, objects: List[LayoutObject]) -> Dict[str, List[LayoutObject]]:
+        Args:
+            objects: List of layout objects to validate
+
+        Returns:
+            ConstraintValidation with errors, warnings, and suggestions
+        """
+        errors: List[ConstraintError] = []
+        warnings: List[ConstraintWarning] = []
+        suggestions: List[ConstraintSuggestion] = []
+
+        # Group objects by category
         objects_by_category: Dict[str, List[LayoutObject]] = {}
         for obj in objects:
-            objects_by_category.setdefault(obj.category, []).append(obj)
-        return objects_by_category
+            if obj.category not in objects_by_category:
+                objects_by_category[obj.category] = []
+            objects_by_category[obj.category].append(obj)
 
-    def _validate_counts(self, cat_id: str, category_config: Dict[str, Any], count: int) -> List[ConstraintViolation]:
-        violations: List[ConstraintViolation] = []
-        min_count = category_config.get("minCount", 1 if category_config.get("required") else 0)
-        max_count = category_config.get("maxCount")
+        # Check required categories
+        required_categories = self.constraints.get('requiredCategories', [])
+        for cat_id in required_categories:
+            if cat_id not in objects_by_category or len(objects_by_category[cat_id]) == 0:
+                errors.append(ConstraintError(
+                    type='missing_required',
+                    category_id=cat_id,
+                    message=f"Required category '{cat_id}' is missing"
+                ))
 
-        if count < min_count:
-            violations.append(
-                self._make_violation(
-                    violation_id=f"count_min_{cat_id}",
-                    constraint_type="count_min",
-                    message=f"Category '{cat_id}' requires at least {min_count} object(s); found {count}.",
-                    severity="error",
-                    metric_value=float(count),
-                    threshold=float(min_count),
-                    unit="count",
-                    object_ids=[],
-                    direction="min",
-                )
-            )
+        # Validate each category
+        for cat_id, category_config in self.categories.items():
+            category_objects = objects_by_category.get(cat_id, [])
 
-        if max_count is not None and count > max_count:
-            violations.append(
-                self._make_violation(
-                    violation_id=f"count_max_{cat_id}",
-                    constraint_type="count_max",
-                    message=f"Category '{cat_id}' allows at most {max_count} object(s); found {count}.",
-                    severity="warning",
-                    metric_value=float(count),
-                    threshold=float(max_count),
-                    unit="count",
-                    object_ids=[],
-                    direction="max",
-                )
-            )
-        return violations
+            # Check count constraints
+            if category_config.get('required', False):
+                if len(category_objects) < category_config.get('minCount', 1):
+                    errors.append(ConstraintError(
+                        type='count_violation',
+                        category_id=cat_id,
+                        message=f"Category '{cat_id}' requires at least {category_config.get('minCount', 1)} objects, found {len(category_objects)}"
+                    ))
 
-    def _validate_size(self, obj: LayoutObject, category_config: Dict[str, Any]) -> List[ConstraintViolation]:
-        violations: List[ConstraintViolation] = []
-        min_size = category_config.get("minSize")
-        max_size = category_config.get("maxSize")
+            max_count = category_config.get('maxCount')
+            if max_count and len(category_objects) > max_count:
+                errors.append(ConstraintError(
+                    type='count_violation',
+                    category_id=cat_id,
+                    message=f"Category '{cat_id}' allows at most {max_count} objects, found {len(category_objects)}"
+                ))
 
-        if min_size:
-            for i, dim in enumerate(["width", "height", "depth"]):
-                if obj.size[i] < min_size[i]:
-                    violations.append(
-                        self._make_violation(
-                            violation_id=f"size_min_{obj.id}_{dim}",
-                            constraint_type="size_min",
-                            message=f"{obj.category} '{obj.id}' {dim} is below minimum ({obj.size[i]:.2f}m < {min_size[i]:.2f}m)",
-                            severity="error",
-                            metric_value=float(obj.size[i]),
-                            threshold=float(min_size[i]),
-                            unit="m",
-                            object_ids=[obj.id],
-                            direction="min",
-                        )
-                    )
+            # Validate each object in category
+            for obj in category_objects:
+                # Check size constraints
+                size_errors = self._validate_size(obj, category_config)
+                errors.extend(size_errors)
 
-        if max_size:
-            for i, dim in enumerate(["width", "height", "depth"]):
-                if obj.size[i] > max_size[i]:
-                    violations.append(
-                        self._make_violation(
-                            violation_id=f"size_max_{obj.id}_{dim}",
-                            constraint_type="size_max",
-                            message=f"{obj.category} '{obj.id}' {dim} exceeds maximum ({obj.size[i]:.2f}m > {max_size[i]:.2f}m)",
-                            severity="warning",
-                            metric_value=float(obj.size[i]),
-                            threshold=float(max_size[i]),
-                            unit="m",
-                            object_ids=[obj.id],
-                            direction="max",
-                        )
-                    )
+                # Check position constraints
+                position_errors = self._validate_position(obj, category_config)
+                errors.extend(position_errors)
 
-        return violations
+                # Check spacing constraints
+                spacing_warnings = self._validate_spacing(obj, objects, category_config)
+                warnings.extend(spacing_warnings)
 
-    def _validate_position(self, obj: LayoutObject, category_config: Dict[str, Any]) -> List[ConstraintViolation]:
-        violations: List[ConstraintViolation] = []
-        allowed_positions = category_config.get("allowedPositions", "any")
-        room_width = self.room_config.get("defaultDimensions", {}).get("width", 4)
-        room_length = self.room_config.get("defaultDimensions", {}).get("length", 3)
-
-        x, _, z = obj.position
-        width, _, depth = obj.size
-
-        # Out of bounds
-        overrun = max(
-            0.0,
-            -x,
-            x + width - room_width,
-            -z,
-            z + depth - room_length,
-        )
-        if overrun > 0:
-            violations.append(
-                self._make_violation(
-                    violation_id=f"position_bounds_{obj.id}",
-                    constraint_type="position_bounds",
-                    message=f"{obj.category} '{obj.id}' exceeds room bounds by {overrun:.2f}m",
-                    severity="error",
-                    metric_value=float(overrun),
-                    threshold=float(max(room_width, room_length)),
-                    unit="m",
-                    object_ids=[obj.id],
-                    direction="max",
-                )
-            )
-
-        # Proximity to wall / center placement
-        if allowed_positions == "wall":
-            threshold = 0.1
-            distances_to_walls = [
-                x,
-                room_width - (x + width),
-                z,
-                room_length - (z + depth),
-            ]
-            nearest_wall = min(distances_to_walls)
-            if nearest_wall > threshold:
-                violations.append(
-                    self._make_violation(
-                        violation_id=f"position_wall_{obj.id}",
-                        constraint_type="position_wall",
-                        message=f"{obj.category} '{obj.id}' should sit against a wall (nearest wall {nearest_wall:.2f}m, desired ≤ {threshold}m)",
-                        severity="warning",
-                        metric_value=float(nearest_wall),
-                        threshold=float(threshold),
-                        unit="m",
-                        object_ids=[obj.id],
-                        direction="max",
-                    )
-                )
-        elif allowed_positions == "center":
-            center_x = room_width / 2
-            center_z = room_length / 2
-            obj_center_x = x + width / 2
-            obj_center_z = z + depth / 2
-            distance_from_center = float(
-                np.sqrt((obj_center_x - center_x) ** 2 + (obj_center_z - center_z) ** 2)
-            )
-            allowed_radius = min(room_width, room_length) * 0.3
-            if distance_from_center > allowed_radius:
-                violations.append(
-                    self._make_violation(
-                        violation_id=f"position_center_{obj.id}",
-                        constraint_type="position_center",
-                        message=f"{obj.category} '{obj.id}' should be closer to the room center (distance {distance_from_center:.2f}m > {allowed_radius:.2f}m).",
-                        severity="warning",
-                        metric_value=distance_from_center,
-                        threshold=float(allowed_radius),
-                        unit="m",
-                        object_ids=[obj.id],
-                        direction="max",
-                    )
-                )
-
-        return violations
-
-    def _validate_spacing(self, obj: LayoutObject, peer_objects: List[LayoutObject], category_config: Dict[str, Any]) -> List[ConstraintViolation]:
-        violations: List[ConstraintViolation] = []
-        spacing = category_config.get("spacing", {})
-        min_distance = spacing.get("minDistance")
-        clearance = spacing.get("clearance", 0)
-
-        if not min_distance and not clearance:
-            return violations
-
-        for other_obj in peer_objects:
-            # Minimum distance between centers
-            if min_distance:
-                obj_center = np.array([obj.position[0] + obj.size[0] / 2, obj.position[2] + obj.size[2] / 2])
-                other_center = np.array([other_obj.position[0] + other_obj.size[0] / 2, other_obj.position[2] + other_obj.size[2] / 2])
-                distance = float(np.linalg.norm(obj_center - other_center))
-                if distance < min_distance:
-                    violations.append(
-                        self._make_violation(
-                            violation_id=f"spacing_min_{obj.id}_{other_obj.id}",
-                            constraint_type="spacing_min_distance",
-                            message=f"{obj.category} '{obj.id}' is too close to '{other_obj.id}' ({distance:.2f}m < {min_distance:.2f}m).",
-                            severity="warning",
-                            metric_value=distance,
-                            threshold=float(min_distance),
-                            unit="m",
-                            object_ids=[obj.id, other_obj.id],
-                            direction="min",
-                        )
-                    )
-
-            # Clearance (axis-aligned gap)
-            if clearance:
-                x1_min, x1_max = obj.position[0], obj.position[0] + obj.size[0]
-                z1_min, z1_max = obj.position[2], obj.position[2] + obj.size[2]
-
-                x2_min, x2_max = other_obj.position[0], other_obj.position[0] + other_obj.size[0]
-                z2_min, z2_max = other_obj.position[2], other_obj.position[2] + other_obj.size[2]
-
-                gap_x = max(0.0, x2_min - x1_max, x1_min - x2_max)
-                gap_z = max(0.0, z2_min - z1_max, z1_min - z2_max)
-                actual_clearance = float(min(gap_x, gap_z)) if min(gap_x, gap_z) > 0 else 0.0
-
-                if actual_clearance < clearance:
-                    violations.append(
-                        self._make_violation(
-                            violation_id=f"spacing_clearance_{obj.id}_{other_obj.id}",
-                            constraint_type="spacing_clearance",
-                            message=f"{obj.category} '{obj.id}' lacks clearance around '{other_obj.id}' (clearance {actual_clearance:.2f}m < {clearance:.2f}m).",
-                            severity="warning",
-                            metric_value=actual_clearance,
-                            threshold=float(clearance),
-                            unit="m",
-                            object_ids=[obj.id, other_obj.id],
-                            direction="min",
-                        )
-                    )
-
-        return violations
-
-    def _validate_dependencies(self, objects_by_category: Dict[str, List[LayoutObject]]) -> List[ConstraintViolation]:
-        violations: List[ConstraintViolation] = []
+        # Check dependencies
         for cat_id, category_config in self.categories.items():
             dependencies = category_config.get("dependencies", [])
             category_objects = objects_by_category.get(cat_id, [])
@@ -341,23 +152,14 @@ class ConstraintSolver:
                 for dep_id in dependencies:
                     if dep_id not in objects_by_category or len(objects_by_category[dep_id]) == 0:
                         for obj in category_objects:
-                            violations.append(
-                                self._make_violation(
-                                    violation_id=f"dependency_{cat_id}_requires_{dep_id}",
-                                    constraint_type="dependency_missing",
-                                    message=f"{obj.category} '{obj.id}' requires category '{dep_id}' to be present.",
-                                    severity="error",
-                                    metric_value=0.0,
-                                    threshold=1.0,
-                                    unit="count",
-                                    object_ids=[obj.id],
-                                    direction="min",
-                                )
-                            )
-        return violations
+                            errors.append(ConstraintError(
+                                type='dependency_violation',
+                                category_id=cat_id,
+                                object_id=obj.id,
+                                message=f"Object '{obj.id}' of category '{cat_id}' requires category '{dep_id}' to be present"
+                            ))
 
-    def _validate_conflicts(self, objects_by_category: Dict[str, List[LayoutObject]]) -> List[ConstraintViolation]:
-        violations: List[ConstraintViolation] = []
+        # Check conflicts
         for cat_id, category_config in self.categories.items():
             conflicts = category_config.get("conflicts", [])
             category_objects = objects_by_category.get(cat_id, [])
@@ -366,59 +168,241 @@ class ConstraintSolver:
                 for conflict_id in conflicts:
                     if conflict_id in objects_by_category and len(objects_by_category[conflict_id]) > 0:
                         for obj in category_objects:
-                            violations.append(
-                                self._make_violation(
-                                    violation_id=f"conflict_{cat_id}_with_{conflict_id}_{obj.id}",
-                                    constraint_type="conflict",
-                                    message=f"{obj.category} '{obj.id}' conflicts with '{conflict_id}'.",
-                                    severity="error",
-                                    metric_value=1.0,
-                                    threshold=0.0,
-                                    unit="binary",
-                                    object_ids=[obj.id],
-                                    direction="max",
-                                )
-                            )
-        return violations
+                            errors.append(ConstraintError(
+                                type='conflict_violation',
+                                category_id=cat_id,
+                                object_id=obj.id,
+                                message=f"Category '{cat_id}' conflicts with category '{conflict_id}'"
+                            ))
 
-    def _validate_layout_rule(self, rule: Dict[str, Any], objects: List[LayoutObject], objects_by_category: Dict[str, List[LayoutObject]]) -> List[ConstraintViolation]:
-        violations: List[ConstraintViolation] = []
+        # Validate layout rules
+        for rule in self.layout_rules:
+            rule_warnings = self._validate_layout_rule(rule, objects, objects_by_category)
+            warnings.extend(rule_warnings)
+
+        # Generate suggestions
+        suggestions = self._generate_suggestions(objects, objects_by_category, errors)
+        suggestions.extend(suggestions)
+
+        valid = len(errors) == 0
+        return ConstraintValidation(
+            valid=valid,
+            errors=errors,
+            warnings=warnings,
+            suggestions=suggestions
+        )
+
+    def _validate_size(self, obj: LayoutObject, category_config: Dict[str, Any]) -> List[ConstraintError]:
+        """
+        Check whether an object's dimensions violate the category's minimum or maximum size constraints.
+        
+        Parameters:
+            obj (LayoutObject): The layout object whose `size` (3-tuple) is validated.
+            category_config (Dict[str, Any]): Category configuration that may contain `minSize` and `maxSize` as 3-element iterables.
+        
+        Returns:
+            List[ConstraintError]: A list of `ConstraintError` entries with type `size_violation` for each detected size violation; empty if the object size is within the allowed bounds.
+        """
+        errors = []
+
+        min_size = category_config.get('minSize')
+        max_size = category_config.get('maxSize')
+
+        if min_size:
+            if any(obj.size[i] < min_size[i] for i in range(3)):
+                errors.append(ConstraintError(
+                    type='size_violation',
+                    category_id=obj.category,
+                    object_id=obj.id,
+                    message=f"Object '{obj.id}' is smaller than minimum size for category '{obj.category}'"
+                ))
+
+        if max_size:
+            if any(obj.size[i] > max_size[i] for i in range(3)):
+                errors.append(ConstraintError(
+                    type='size_violation',
+                    category_id=obj.category,
+                    object_id=obj.id,
+                    message=f"Object '{obj.id}' is larger than maximum size for category '{obj.category}'"
+                ))
+
+        return errors
+
+    def _validate_position(self, obj: LayoutObject, category_config: Dict[str, Any]) -> List[ConstraintError]:
+        """
+        Validate a layout object's position against room and category placement constraints.
+        
+        Parameters:
+            obj (LayoutObject): The object whose position will be validated.
+            category_config (Dict[str, Any]): Category-specific placement rules; may include `allowedPositions` among other placement settings.
+        
+        Returns:
+            List[ConstraintError]: A list of position-related constraint errors. Each entry indicates a violation such as being outside room bounds, failing a required wall placement, or not being within the required center area.
+        """
+        errors = []
+
+        allowed_positions = category_config.get('allowedPositions', 'any')
+        room_width = self.room_config.get('defaultDimensions', {}).get('width', 4)
+        room_length = self.room_config.get('defaultDimensions', {}).get('length', 3)
+
+        x, y, z = obj.position
+        width, height, depth = obj.size
+
+        # Check if object is within room bounds
+        if x < 0 or x + width > room_width or z < 0 or z + depth > room_length:
+            errors.append(ConstraintError(
+                type='position_violation',
+                category_id=obj.category,
+                object_id=obj.id,
+                message=f"Object '{obj.id}' is outside room bounds"
+            ))
+
+        # Check position type constraints
+        if allowed_positions == 'wall':
+            # Object should be near a wall (within threshold)
+            threshold = 0.1
+            near_wall = (
+                x <= threshold or x + width >= room_width - threshold or
+                z <= threshold or z + depth >= room_length - threshold
+            )
+            if not near_wall:
+                errors.append(ConstraintError(
+                    type='position_violation',
+                    category_id=obj.category,
+                    object_id=obj.id,
+                    message=f"Object '{obj.id}' must be placed against a wall"
+                ))
+        elif allowed_positions == 'center':
+            # Object should be in center area
+            center_x = room_width / 2
+            center_z = room_length / 2
+            obj_center_x = x + width / 2
+            obj_center_z = z + depth / 2
+
+            distance_from_center = np.sqrt(
+                (obj_center_x - center_x) ** 2 + (obj_center_z - center_z) ** 2
+            )
+            if distance_from_center > min(room_width, room_length) * 0.3:
+                errors.append(ConstraintError(
+                    type='position_violation',
+                    category_id=obj.category,
+                    object_id=obj.id,
+                    message=f"Object '{obj.id}' must be placed in center area"
+                ))
+
+        return errors
+
+    def _validate_spacing(self, obj: LayoutObject, all_objects: List[LayoutObject], category_config: Dict[str, Any]) -> List[ConstraintWarning]:
+        """
+        Check spacing rules for a single object against all other objects and produce spacing-related warnings.
+        
+        Examines the category's `spacing` configuration for `minDistance` and `clearance`. If `minDistance` is set, emits a warning when another object's center-to-center distance is less than that value. If `clearance` is set, performs a simple 2D bounding-box overlap check (XZ plane) expanded by the clearance and emits a warning when boxes overlap.
+        
+        Parameters:
+            obj (LayoutObject): The object to validate.
+            all_objects (List[LayoutObject]): All layout objects to compare against (including `obj`).
+            category_config (Dict[str, Any]): Category configuration which may contain a `spacing` dict with:
+                - `minDistance` (float): Minimum required center-to-center distance in meters.
+                - `clearance` (float): Required clearance in meters used to expand the object's bounding box.
+        
+        Returns:
+            List[ConstraintWarning]: Warnings for spacing violations. Each warning has type `spacing_concern` and references the subject object's category and id.
+        """
+        warnings = []
+
+        spacing = category_config.get('spacing', {})
+        min_distance = spacing.get('minDistance')
+        clearance = spacing.get('clearance', 0)
+
+        if not min_distance and not clearance:
+            return warnings
+
+        for other_obj in all_objects:
+            if other_obj.id == obj.id:
+                continue
+
+            # Calculate distance between object centers
+            obj_center = np.array([obj.position[0] + obj.size[0] / 2, obj.position[2] + obj.size[2] / 2])
+            other_center = np.array([other_obj.position[0] + other_obj.size[0] / 2, other_obj.position[2] + other_obj.size[2] / 2])
+            distance = np.linalg.norm(obj_center - other_center)
+
+            # Check minimum distance
+            if min_distance and distance < min_distance:
+                warnings.append(ConstraintWarning(
+                    type='spacing_concern',
+                    category_id=obj.category,
+                    object_id=obj.id,
+                    message=f"Object '{obj.id}' is too close to '{other_obj.id}' (distance: {distance:.2f}m, minimum: {min_distance}m)"
+                ))
+
+            # Check clearance (bounding box overlap)
+            if clearance:
+                # Simple bounding box check
+                obj_bounds = {
+                    'x_min': obj.position[0] - clearance,
+                    'x_max': obj.position[0] + obj.size[0] + clearance,
+                    'z_min': obj.position[2] - clearance,
+                    'z_max': obj.position[2] + obj.size[2] + clearance,
+                }
+                other_bounds = {
+                    'x_min': other_obj.position[0],
+                    'x_max': other_obj.position[0] + other_obj.size[0],
+                    'z_min': other_obj.position[2],
+                    'z_max': other_obj.position[2] + other_obj.size[2],
+                }
+
+                if not (obj_bounds['x_max'] < other_bounds['x_min'] or
+                       obj_bounds['x_min'] > other_bounds['x_max'] or
+                       obj_bounds['z_max'] < other_bounds['z_min'] or
+                       obj_bounds['z_min'] > other_bounds['z_max']):
+                    warnings.append(ConstraintWarning(
+                        type='spacing_concern',
+                        category_id=obj.category,
+                        object_id=obj.id,
+                        message=f"Object '{obj.id}' does not have sufficient clearance around '{other_obj.id}'"
+                    ))
+
+        return warnings
+
+    def _validate_layout_rule(self, rule: Dict[str, Any], objects: List[LayoutObject], objects_by_category: Dict[str, List[LayoutObject]]) -> List[ConstraintWarning]:
+        """
+        Validate a single layout rule against the provided layout objects and produce any resulting warnings.
+        
+        Parameters:
+        	rule (Dict[str, Any]): Rule definition containing at least a `type` (e.g., "proximity" or "accessibility"), optional `categoryIds` (list of category ids to which the rule applies), and a `parameters` mapping with rule-specific values (for example, `maxDistance` for proximity or `minClearance` for accessibility).
+        	objects (List[LayoutObject]): All layout objects to evaluate; used to select and compare relevant objects.
+        	objects_by_category (Dict[str, List[LayoutObject]]): Mapping of category id to objects in that category (provided for convenience; the function may use `objects` directly).
+        
+        Returns:
+        	List[ConstraintWarning]: Warnings describing rule violations (e.g., `suboptimal_layout` for objects farther apart than `maxDistance`, or `accessibility_issue` when an object lacks the required clearance).
+        """
+        warnings = []
 
         rule_type = rule.get('type')
         category_ids = rule.get('categoryIds', [])
         parameters = rule.get('parameters', {})
         priority = rule.get('priority', 'optional')
-        severity = "error" if priority == "required" else ("warning" if priority == "recommended" else "info")
-        rule_id = rule.get('id', 'layout_rule')
 
         if rule_type == 'proximity':
             max_distance = parameters.get('maxDistance', 2.0)
             relevant_objects = [obj for obj in objects if obj.category in category_ids]
 
             if len(relevant_objects) < 2:
-                return violations
+                return warnings
 
             # Check pairwise distances
             for i, obj1 in enumerate(relevant_objects):
                 for obj2 in relevant_objects[i+1:]:
                     obj1_center = np.array([obj1.position[0] + obj1.size[0] / 2, obj1.position[2] + obj1.size[2] / 2])
                     obj2_center = np.array([obj2.position[0] + obj2.size[0] / 2, obj2.position[2] + obj2.size[2] / 2])
-                    distance = float(np.linalg.norm(obj1_center - obj2_center))
+                    distance = np.linalg.norm(obj1_center - obj2_center)
 
                     if distance > max_distance:
-                        violations.append(
-                            self._make_violation(
-                                violation_id=f"{rule_id}_{obj1.id}_{obj2.id}",
-                                constraint_type="layout_rule_proximity",
-                                message=f"Rule '{rule.get('name', rule_id)}' violated: {obj1.category} and {obj2.category} are {distance:.2f}m apart (max {max_distance:.2f}m).",
-                                severity=severity,
-                                metric_value=distance,
-                                threshold=float(max_distance),
-                                unit="m",
-                                object_ids=[obj1.id, obj2.id],
-                                direction="max",
-                            )
-                        )
+                        warnings.append(ConstraintWarning(
+                            type='suboptimal_layout',
+                            category_id=obj1.category,
+                            message=f"Layout rule '{rule.get('name')}' violated: '{obj1.category}' and '{obj2.category}' are too far apart (distance: {distance:.2f}m, max: {max_distance}m)"
+                        ))
 
         elif rule_type == 'accessibility':
             min_clearance = parameters.get('minClearance', 0.5)
@@ -437,88 +421,71 @@ class ConstraintSolver:
                 )
 
                 if not has_clearance:
-                    violations.append(
-                        self._make_violation(
-                            violation_id=f"{rule_id}_{obj.id}",
-                            constraint_type="layout_rule_accessibility",
-                            message=f"Rule '{rule.get('name', rule_id)}' violated: {obj.category} '{obj.id}' lacks {min_clearance:.2f}m clearance on at least one side.",
-                            severity=severity,
-                            metric_value=0.0,
-                            threshold=float(min_clearance),
-                            unit="m",
-                            object_ids=[obj.id],
-                            direction="min",
-                        )
-                    )
+                    warnings.append(ConstraintWarning(
+                        type='accessibility_issue',
+                        category_id=obj.category,
+                        object_id=obj.id,
+                        message=f"Object '{obj.id}' may not have sufficient accessibility clearance"
+                    ))
 
-        return violations
+        return warnings
 
-    def validate_layout(self, objects: List[LayoutObject]) -> ConstraintValidation:
+    def _generate_suggestions(self, objects: List[LayoutObject], objects_by_category: Dict[str, List[LayoutObject]], errors: List[ConstraintError]) -> List[ConstraintSuggestion]:
         """
-        Validate a layout against room type constraints and return normalized violations.
+        Create suggestions to address validation issues, primarily by proposing additions for missing required categories.
+        
+        Parameters:
+            objects (List[LayoutObject]): All layout objects currently in the room.
+            objects_by_category (Dict[str, List[LayoutObject]]): Mapping from category id to list of objects of that category.
+            errors (List[ConstraintError]): Validation errors detected (not directly used for current suggestions but provided for extensibility).
+        
+        Returns:
+            List[ConstraintSuggestion]: A list of suggestions. Each suggestion of type `add_object` includes `category_id`, a `message`, and a `suggested_action` dictionary with `position`, `size`, and `orientation` for the recommended new object.
         """
-        violations: List[ConstraintViolation] = []
-        objects_by_category = self._group_objects(objects)
+        suggestions = []
 
-        # Required categories
+        # Suggest adding missing required objects
         required_categories = self.constraints.get('requiredCategories', [])
         for cat_id in required_categories:
-            count = len(objects_by_category.get(cat_id, []))
-            if count < 1:
-                violations.append(
-                    self._make_violation(
-                        violation_id=f"missing_required_{cat_id}",
-                        constraint_type="missing_required",
-                        message=f"Required category '{cat_id}' is missing.",
-                        severity="error",
-                        metric_value=float(count),
-                        threshold=1.0,
-                        unit="count",
-                        object_ids=[],
-                        direction="min",
-                    )
-                )
+            if cat_id not in objects_by_category or len(objects_by_category[cat_id]) == 0:
+                category_config = self.categories.get(cat_id, {})
+                default_size = category_config.get('minSize', [1.0, 1.0, 1.0])
+                room_width = self.room_config.get('defaultDimensions', {}).get('width', 4)
+                room_length = self.room_config.get('defaultDimensions', {}).get('length', 3)
 
-        # Category-level counts and per-object checks
-        for cat_id, category_config in self.categories.items():
-            category_objects = objects_by_category.get(cat_id, [])
-            violations.extend(self._validate_counts(cat_id, category_config, len(category_objects)))
+                # Suggest position based on allowed positions
+                allowed_positions = category_config.get('allowedPositions', 'any')
+                if allowed_positions == 'wall':
+                    suggested_position = [0.1, 0, 0.1]  # Near corner
+                elif allowed_positions == 'center':
+                    suggested_position = [room_width / 2 - default_size[0] / 2, 0, room_length / 2 - default_size[2] / 2]
+                else:
+                    suggested_position = [room_width / 2 - default_size[0] / 2, 0, room_length / 2 - default_size[2] / 2]
 
-            for obj in category_objects:
-                violations.extend(self._validate_size(obj, category_config))
-                violations.extend(self._validate_position(obj, category_config))
+                suggestions.append(ConstraintSuggestion(
+                    type='add_object',
+                    category_id=cat_id,
+                    message=f"Add required object of category '{cat_id}'",
+                    suggested_action={
+                        'position': suggested_position,
+                        'size': default_size,
+                        'orientation': 0.0
+                    }
+                ))
 
-        # Spacing checks (pairwise)
-        for idx, obj in enumerate(objects):
-            category_config = self.categories.get(obj.category, {})
-            violations.extend(self._validate_spacing(obj, objects[idx + 1 :], category_config))
-
-        # Dependencies and conflicts
-        violations.extend(self._validate_dependencies(objects_by_category))
-        violations.extend(self._validate_conflicts(objects_by_category))
-
-        # Layout rules
-        for rule in self.layout_rules:
-            violations.extend(self._validate_layout_rule(rule, objects, objects_by_category))
-
-        max_violation = max((v.normalized_violation for v in violations), default=0.0)
-        satisfied = max_violation <= self.TOLERANCE
-
-        return ConstraintValidation(
-            satisfied=satisfied,
-            max_violation=float(max_violation),
-            violations=violations,
-        )
+        return suggestions
 
     def solve_constraints(self, objects: List[LayoutObject]) -> Tuple[List[LayoutObject], ConstraintValidation]:
         """
-        Solve constraints by adjusting object positions and sizes.
-
-        Args:
-            objects: List of layout objects to adjust
-
+        Adjust layout objects to satisfy detected constraints and return the adjusted set with validation results.
+        
+        This method validates the provided objects, applies automated fixes for detectable errors (e.g., nudging objects against a wall when a position violation occurs for categories restricted to wall placement; clamping object sizes to category min/max when a size violation occurs), re-validates the adjusted objects, and returns both the modified object list and the final ConstraintValidation.
+        
+        Parameters:
+            objects (List[LayoutObject]): The input layout objects to validate and potentially adjust.
+        
         Returns:
-            Tuple of (adjusted_objects, validation_result)
+            Tuple[List[LayoutObject], ConstraintValidation]: A tuple where the first element is the list of adjusted LayoutObject instances and the second is the validation result after applying fixes.
         """
         # First validate to collect issues to fix
         validation = self.validate_layout(objects)
@@ -572,9 +539,9 @@ class ConstraintSolver:
                         else:  # Front
                             obj.position = (x, y, room_length - depth - 0.05)
 
-            elif violation.constraint_type in ('size_min', 'size_max'):
-                obj_id = violation.object_ids[0] if violation.object_ids else None
-                obj = next((o for o in adjusted_objects if o.id == obj_id), None)
+            elif error.type == 'size_violation':
+                # Clamp size to valid range
+                obj = next((o for o in adjusted_objects if o.id == error.object_id), None)
                 if obj:
                     category_config = self.categories.get(obj.category, {})
                     min_size = category_config.get('minSize')

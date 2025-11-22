@@ -162,15 +162,15 @@ def stub_objects(seed: int) -> List[SceneObject3D]:
 @app.post("/generate-layout", response_model=LayoutResponse)
 async def generate_layout(request: LayoutRequest):
     """
-    Generate a semantic room layout from the given request and return a LayoutResponse.
+    Generate a semantic room layout from the provided request.
     
-    Attempts to fetch an architectural mask (if request.arch_mask_url is provided), encodes the request's vibe specification to derive a vibe bias, and invokes the semantic layout generator. If any step fails, returns a deterministic fallback response containing a dummy semantic PNG URL, a seeded list of scene objects, world_scale 0.01, and a default rectangular room outline.
+    Attempts to fetch an optional architectural mask, encode the request's vibe specification to derive a category bias, and produce a semantic layout and object instances. Applies a best-effort constraint-solving pass to adjust object placements; if layout generation or constraint solving fails, returns a deterministic fallback layout.
     
     Parameters:
         request (LayoutRequest): Request containing room_type, optional arch_mask_url and mask_type, vibe_spec, and optional seed.
     
     Returns:
-        LayoutResponse: The generated layout response. On success this contains the semantic_map_png_url (when available), generated SceneObject3D objects, world_scale, and optional room_outline; on failure these fields are populated with the deterministic fallback values described above.
+        LayoutResponse: The generated layout including `semantic_map_png_url`, `objects`, `world_scale`, and optionally `room_outline`. On failure this contains deterministic fallback values: a dummy semantic PNG URL, seeded stub objects, `world_scale` of 0.01, and a default rectangular `room_outline`.
     """
     seed = request.seed or 1
 
@@ -202,7 +202,7 @@ async def generate_layout(request: LayoutRequest):
 
         # Apply constraint solver (best-effort; falls back to original objects on error)
         try:
-            room_config = request.room_config or get_room_type_config(request.room_type)
+            room_config = get_room_type_config(request.room_type)
             solver = ConstraintSolver(room_config)
 
             solver_objects = [
@@ -217,7 +217,7 @@ async def generate_layout(request: LayoutRequest):
                 for obj in resp["objects"]
             ]
 
-            adjusted_objects, validation = solver.solve_constraints(solver_objects)
+            adjusted_objects, _validation = solver.solve_constraints(solver_objects)
 
             resp["objects"] = [
                 {
@@ -230,26 +230,9 @@ async def generate_layout(request: LayoutRequest):
                 }
                 for obj in adjusted_objects
             ]
-            resp["constraint_validation"] = validation.to_dict()
         except Exception:
             # If constraint solver fails, continue with original objects
-            failure_validation = ConstraintValidation(
-                satisfied=False,
-                max_violation=1.0,
-                violations=[
-                    ConstraintViolation(
-                        id="solver_failure",
-                        constraint_type="solver_failure",
-                        message="Constraint solver failed; returning raw layout.",
-                        severity="error",
-                        metric_value=1.0,
-                        threshold=1.0,
-                        normalized_violation=1.0,
-                        object_ids=[],
-                    )
-                ],
-            )
-            resp["constraint_validation"] = failure_validation.dict()
+            pass
 
         return LayoutResponse(**resp)
     except Exception:
