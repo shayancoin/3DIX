@@ -11,9 +11,10 @@ import { VibePanel, VibeFormState } from '@/components/design/VibePanel';
 import { SceneHistory } from '@/components/design/SceneHistory';
 import { JobProgress } from '@/components/jobs/JobProgress';
 import { useJobPolling } from '@/hooks/useJobPolling';
-import { SceneObject3D, SceneObject2D } from '@3dix/types';
+import { SceneObject3D, SceneObject2D, ConstraintValidation } from '@3dix/types';
 import { MaskControlsState } from '@/components/design/MaskControls';
 import { SemanticMapViewer } from '@/components/layout/SemanticMapViewer';
+import { ConstraintStatus } from '@/components/design/ConstraintStatus';
 
 
 // Dynamically import Canvas2D to avoid SSR issues with Konva
@@ -74,6 +75,7 @@ export default function RoomPage() {
     const [isCustomObjectModalOpen, setIsCustomObjectModalOpen] = useState(false);
 
     const { job, loading: jobLoading, error: jobError } = useJobPolling(jobId, 3000);
+    const constraintValidation = (job?.result as any)?.constraint_validation as ConstraintValidation | undefined;
 
     const handleCustomObjectUpload = async (imageUrl: string) => {
         if (!selectedObjectId || !room) return;
@@ -372,6 +374,7 @@ export default function RoomPage() {
                     <SceneHistory history={history} onRestore={handleRestore} />
                     <div className="flex-1 overflow-hidden space-y-4 p-4">
                         <JobProgress job={job} loading={jobLoading} />
+                        <ConstraintStatus validation={constraintValidation} loading={jobLoading || isGenerating} />
                         {jobError && (
                             <div className="text-sm text-destructive">
                                 {jobError}
