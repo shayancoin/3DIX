@@ -50,10 +50,13 @@ export interface BoundingBox2D {
 export interface SceneObject2D {
   id: string;
   type: string; // e.g., 'sofa', 'table', 'chair'
+  category: string; // e.g., 'sofa', 'table', 'chair' - same as type for now, but aligns with 3D
   position: { x: number; y: number };
   rotation: number; // in degrees
   dimensions: { width: number; depth: number };
   color?: string; // for placeholder visualization
+  label?: string;
+  metadata?: Record<string, any>;
 }
 
 // 3D Scene Object Types (for future use)

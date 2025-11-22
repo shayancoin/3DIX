@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { LayoutCanvas } from '@/components/layout/LayoutCanvas';
 import { VibePanel } from '@/components/vibe/VibePanel';
@@ -32,7 +32,7 @@ export default function StudioPage() {
   const [meshQuality, setMeshQuality] = useState<'low' | 'medium' | 'high'>('high');
   const [useMeshes, setUseMeshes] = useState(true);
   const [showObjectReplacement, setShowObjectReplacement] = useState(false);
-  
+
   // Sync selection between 2D and 3D views
   const handleObjectSelect = useCallback((objectId: string | undefined, source: '2d' | '3d' | 'semantic') => {
     if (source === '2d') {
@@ -129,22 +129,24 @@ export default function StudioPage() {
   useEffect(() => {
     if (job?.status === 'completed' && job.responseData) {
       const responseData = job.responseData;
-      
+
       // Store layout objects
       if (responseData.objects) {
         setLayoutObjects(responseData.objects);
-        
+
         // Convert 3D layout objects to 2D scene objects for canvas
-        const sceneObjects = responseData.objects.map((obj: any, index: number) => ({
+        const sceneObjects: SceneObject2D[] = responseData.objects.map((obj: any, index: number) => ({
           id: obj.id || `obj-${index}`,
+          type: obj.category,
           category: obj.category,
           position: { x: obj.position[0], y: obj.position[2] }, // Use x and z for 2D
-          size: { width: obj.size[0], height: obj.size[2] },
+          rotation: (obj.orientation || 0) * 90,
+          dimensions: { width: obj.size[0], depth: obj.size[2] },
           boundingBox: {
             x: obj.position[0],
             y: obj.position[2],
             width: obj.size[0],
-            height: obj.size[2],
+            height: obj.size[1],
           },
           label: obj.category,
         }));
@@ -173,13 +175,13 @@ export default function StudioPage() {
       prev.map((obj) =>
         obj.id === objectId
           ? {
-              ...obj,
-              metadata: {
-                ...obj.metadata,
-                customMeshData: meshData,
-                isCustom: true,
-              },
-            }
+            ...obj,
+            metadata: {
+              ...obj.metadata,
+              customMeshData: meshData,
+              isCustom: true,
+            },
+          }
           : obj
       )
     );
@@ -189,13 +191,13 @@ export default function StudioPage() {
       prev.map((obj) =>
         obj.id === objectId
           ? {
-              ...obj,
-              metadata: {
-                ...obj.metadata,
-                customMeshData: meshData,
-                isCustom: true,
-              },
-            }
+            ...obj,
+            metadata: {
+              ...obj.metadata,
+              customMeshData: meshData,
+              isCustom: true,
+            },
+          }
           : obj
       )
     );
@@ -237,36 +239,33 @@ export default function StudioPage() {
               <JobProgress job={job} loading={jobLoading} />
             </div>
           )}
-          
+
           {/* View Mode Toggle */}
           <div className="p-2 border-b bg-white flex gap-2">
             <button
               onClick={() => setViewMode('canvas')}
-              className={`px-3 py-1 text-sm rounded ${
-                viewMode === 'canvas'
+              className={`px-3 py-1 text-sm rounded ${viewMode === 'canvas'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-gray-100 hover:bg-gray-200'
-              }`}
+                }`}
             >
               2D Canvas
             </button>
             <button
               onClick={() => setViewMode('semantic')}
-              className={`px-3 py-1 text-sm rounded ${
-                viewMode === 'semantic'
+              className={`px-3 py-1 text-sm rounded ${viewMode === 'semantic'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-gray-100 hover:bg-gray-200'
-              }`}
+                }`}
             >
               Semantic Map
             </button>
             <button
               onClick={() => setViewMode('3d')}
-              className={`px-3 py-1 text-sm rounded ${
-                viewMode === '3d'
+              className={`px-3 py-1 text-sm rounded ${viewMode === '3d'
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-gray-100 hover:bg-gray-200'
-              }`}
+                }`}
             >
               3D View
             </button>
@@ -325,14 +324,15 @@ export default function StudioPage() {
                 <CanvasShell>
                   <LayoutScene3D
                     objects={layoutObjects}
-                    roomWidth={roomWidth}
-                    roomLength={roomLength}
-                    selectedObjectId={selectedLayoutObjectId}
-                    onObjectClick={(id) => handleObjectSelect(id, '3d')}
-                    showGrid={true}
-                    showLabels={true}
-                    meshQuality={meshQuality}
-                    useMeshes={useMeshes}
+                    roomOutline={[
+                      [0, 0],
+                      [roomWidth, 0],
+                      [roomWidth, roomLength],
+                      [0, roomLength],
+                    ]}
+                    selectedId={selectedLayoutObjectId}
+                    onSelect={(id: string | null) => handleObjectSelect(id ? id : undefined, '3d')}
+                    quality={meshQuality}
                   />
                 </CanvasShell>
               </div>

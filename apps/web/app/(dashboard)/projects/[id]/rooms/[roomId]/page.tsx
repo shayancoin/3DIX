@@ -14,7 +14,7 @@ import { useJobPolling } from '@/hooks/useJobPolling';
 import { SceneObject3D, SceneObject2D } from '@3dix/types';
 import { MaskControlsState } from '@/components/design/MaskControls';
 import { SemanticMapViewer } from '@/components/layout/SemanticMapViewer';
-import { LayoutScene3D } from '@3dix/three';
+
 
 // Dynamically import Canvas2D to avoid SSR issues with Konva
 const Canvas2D = dynamic(
@@ -152,6 +152,7 @@ export default function RoomPage() {
         return layoutObjects.map((obj) => ({
             id: obj.id || Math.random().toString(),
             type: obj.category || 'object',
+            category: obj.category || 'object',
             position: {
                 x: Array.isArray(obj.position) ? obj.position[0] ?? 0 : 0,
                 y: Array.isArray(obj.position) ? obj.position[2] ?? 0 : 0,
@@ -162,6 +163,7 @@ export default function RoomPage() {
                 depth: Array.isArray(obj.size) ? obj.size[2] ?? 1 : 1,
             },
             color: '#2563eb',
+            metadata: obj.metadata,
         }));
     }, []);
 
@@ -348,7 +350,7 @@ export default function RoomPage() {
                                     roomWidth={room.width}
                                     roomLength={room.length}
                                     selectedId={selectedObjectId || undefined}
-                                    onObjectClick={(id) => setSelectedObjectId(id)}
+                                    onObjectClick={(id) => setSelectedObjectId(id || null)}
                                 />
                             </div>
                         ) : (

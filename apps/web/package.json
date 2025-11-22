@@ -10,8 +10,12 @@
     "layout-worker": "ts-node ./scripts/layoutJobWorker.ts"
   },
   "dependencies": {
+    "@3dix/three": "workspace:^",
+    "@3dix/types": "workspace:^",
+    "@3dix/ui": "workspace:^",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slider": "^1.3.6",
     "@radix-ui/react-slot": "^1.2.4",
     "@types/react": "19.1.4",

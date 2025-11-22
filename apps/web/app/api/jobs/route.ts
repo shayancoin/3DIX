@@ -109,6 +109,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const team = await getTeamForUser();
+    if (!team) {
+      return NextResponse.json({ error: 'No team found' }, { status: 404 });
+    }
+
     const { searchParams } = new URL(req.url);
     const roomId = searchParams.get('roomId');
 
