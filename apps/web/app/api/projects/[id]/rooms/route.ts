@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTeamForUser, getRoomsForProject, createRoom } from '@/lib/db/queries';
-import { getUser } from '@/lib/db/queries';
-import { getProjectWithRooms } from '@/lib/db/queries';
+import { getRoomsForProject, createRoom, getProjectWithRooms, getTeamWithMembershipForUser } from '@/lib/db/queries';
 import { RoomType } from '@/lib/db/schema';
+import { hasRequiredRole } from '@/lib/auth/roles';
+import { ensureRoomCapacity } from '@/lib/billing/limits';
 import { z } from 'zod';
 
 const createRoomSchema = z.object({
@@ -15,25 +15,21 @@ const createRoomSchema = z.object({
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { projectId } = await params;
-    const projectIdNum = parseInt(projectId, 10);
+    const { id } = await params;
+    const projectIdNum = parseInt(id, 10);
 
     if (isNaN(projectIdNum)) {
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
     }
 
-    const user = await getUser();
-    if (!user) {
+    const ctx = await getTeamWithMembershipForUser();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const team = await getTeamForUser();
-    if (!team) {
-      return NextResponse.json({ error: 'No team found' }, { status: 404 });
-    }
+    const team = ctx.team;
 
     // Verify project belongs to team
     const project = await getProjectWithRooms(projectIdNum, team.id);
@@ -54,25 +50,24 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { projectId } = await params;
-    const projectIdNum = parseInt(projectId, 10);
+    const { id } = await params;
+    const projectIdNum = parseInt(id, 10);
 
     if (isNaN(projectIdNum)) {
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
     }
 
-    const user = await getUser();
-    if (!user) {
+    const ctx = await getTeamWithMembershipForUser();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const team = await getTeamForUser();
-    if (!team) {
-      return NextResponse.json({ error: 'No team found' }, { status: 404 });
+    if (!hasRequiredRole(ctx.role, 'member')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    const { team, user } = ctx;
 
     // Verify project belongs to team
     const project = await getProjectWithRooms(projectIdNum, team.id);
@@ -82,6 +77,11 @@ export async function POST(
 
     const body = await req.json();
     const validatedData = createRoomSchema.parse(body);
+
+    const capacity = await ensureRoomCapacity(team);
+    if (!capacity.ok) {
+      return NextResponse.json({ error: capacity.message, code: capacity.code }, { status: 402 });
+    }
 
     const room = await createRoom({
       projectId: projectIdNum,

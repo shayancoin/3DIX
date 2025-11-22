@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTeamForUser, getProjectWithRooms, updateProject, deleteProject } from '@/lib/db/queries';
-import { getUser } from '@/lib/db/queries';
+import { getProjectWithRooms, updateProject, deleteProject, getTeamWithMembershipForUser } from '@/lib/db/queries';
+import { hasRequiredRole } from '@/lib/auth/roles';
 import { z } from 'zod';
 
 const updateProjectSchema = z.object({
@@ -20,15 +20,11 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
     }
 
-    const user = await getUser();
-    if (!user) {
+    const ctx = await getTeamWithMembershipForUser();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const team = await getTeamForUser();
-    if (!team) {
-      return NextResponse.json({ error: 'No team found' }, { status: 404 });
-    }
+    const team = ctx.team;
 
     const project = await getProjectWithRooms(projectId, team.id);
     if (!project) {
@@ -57,15 +53,14 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
     }
 
-    const user = await getUser();
-    if (!user) {
+    const ctx = await getTeamWithMembershipForUser();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const team = await getTeamForUser();
-    if (!team) {
-      return NextResponse.json({ error: 'No team found' }, { status: 404 });
+    if (!hasRequiredRole(ctx.role, 'member')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    const team = ctx.team;
 
     const body = await req.json();
     const validatedData = updateProjectSchema.parse(body);
@@ -103,15 +98,14 @@ export async function DELETE(
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
     }
 
-    const user = await getUser();
-    if (!user) {
+    const ctx = await getTeamWithMembershipForUser();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const team = await getTeamForUser();
-    if (!team) {
-      return NextResponse.json({ error: 'No team found' }, { status: 404 });
+    if (!hasRequiredRole(ctx.role, 'admin')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    const team = ctx.team;
 
     await deleteProject(projectId, team.id);
     return NextResponse.json({ success: true });

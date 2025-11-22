@@ -3,8 +3,7 @@ import { z } from 'zod';
 import {
   createLayoutJob,
   getRoomWithProjectByRoomId,
-  getTeamForUser,
-  getUser,
+  getTeamWithMembershipForUser,
 } from '@/lib/db/queries';
 import { JobStatus } from '@/lib/jobs/stateMachine';
 import { VibeSpec, ROOM_TYPE_CONFIGS, RoomTypeConfig } from '@3dix/types';
@@ -60,13 +59,13 @@ const createLayoutJobSchema = z.object({
 export async function POST(req: NextRequest) {
   try {
     const user = await getUser();
-    if (!user) {
+    const ctx = await getTeamWithMembershipForUser();
+    if (!ctx) {
       return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } }, { status: 401 });
     }
-
-    const team = await getTeamForUser();
-    if (!team) {
-      return NextResponse.json({ error: { code: 'NO_TEAM', message: 'No team found' } }, { status: 404 });
+    const { team, role } = ctx;
+    if (!hasRequiredRole(role, 'member')) {
+      return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Insufficient role' } }, { status: 403 });
     }
 
     const body = await req.json();
@@ -84,6 +83,11 @@ export async function POST(req: NextRequest) {
 
     if (room.project.teamId !== team.id) {
       return NextResponse.json({ error: { code: 'FORBIDDEN', message: 'Room does not belong to your team' } }, { status: 403 });
+    }
+
+    const capacity = await ensureJobCapacity(team);
+    if (!capacity.ok) {
+      return NextResponse.json({ error: { code: capacity.code, message: capacity.message } }, { status: 402 });
     }
 
     const roomType = (room as any).roomType || (room as any).type || 'living_room';

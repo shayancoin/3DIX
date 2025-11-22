@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTeamForUser, getProjectsForTeam, createProject } from '@/lib/db/queries';
-import { getUser } from '@/lib/db/queries';
+import { getProjectsForTeam, createProject, getTeamWithMembershipForUser } from '@/lib/db/queries';
+import { hasRequiredRole } from '@/lib/auth/roles';
+import { ensureProjectCapacity } from '@/lib/billing/limits';
 import { z } from 'zod';
 
 const createProjectSchema = z.object({
@@ -10,12 +11,11 @@ const createProjectSchema = z.object({
 
 export async function GET() {
   try {
-    const user = await getUser();
-    if (!user) {
+    const ctx = await getTeamWithMembershipForUser();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const team = await getTeamForUser();
+    const team = ctx.team;
     if (!team) {
       return NextResponse.json({ error: 'No team found' }, { status: 404 });
     }
@@ -33,18 +33,22 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getUser();
-    if (!user) {
+    const ctx = await getTeamWithMembershipForUser();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const team = await getTeamForUser();
-    if (!team) {
-      return NextResponse.json({ error: 'No team found' }, { status: 404 });
+    if (!hasRequiredRole(ctx.role, 'member')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    const { team, user } = ctx;
 
     const body = await req.json();
     const validatedData = createProjectSchema.parse(body);
+
+    const capacity = await ensureProjectCapacity(team);
+    if (!capacity.ok) {
+      return NextResponse.json({ error: capacity.message, code: capacity.code }, { status: 402 });
+    }
 
     const project = await createProject({
       teamId: team.id,

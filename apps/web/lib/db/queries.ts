@@ -1,4 +1,4 @@
-import { desc, and, eq, isNull } from 'drizzle-orm';
+import { desc, and, eq, isNull, count, gte, lte } from 'drizzle-orm';
 import { db } from './drizzle';
 import { activityLogs, teamMembers, teams, users, projects, rooms, ProjectWithRooms, RoomWithProject, NewProject, NewRoom, layoutJobs, LayoutJob, NewLayoutJob, JobStatus as JobStatusEnum } from './schema';
 import { cookies } from 'next/headers';
@@ -137,6 +137,33 @@ export async function getTeamForUser() {
   return result?.team || null;
 }
 
+/**
+ * Return the current user's team together with their membership role.
+ */
+export async function getTeamWithMembershipForUser() {
+  const user = await getUser();
+  if (!user) {
+    return null;
+  }
+
+  const membership = await db.query.teamMembers.findFirst({
+    where: eq(teamMembers.userId, user.id),
+    with: {
+      team: true,
+    },
+  });
+
+  if (!membership || !membership.team) {
+    return null;
+  }
+
+  return {
+    user,
+    team: membership.team,
+    role: membership.role,
+  };
+}
+
 // Projects & Rooms Queries
 
 export async function getProjectsForTeam(teamId: number) {
@@ -218,6 +245,14 @@ export async function deleteProject(projectId: number, teamId: number) {
       eq(projects.teamId, teamId),
       isNull(projects.deletedAt)
     ));
+}
+
+export async function countProjectsForTeam(teamId: number) {
+  const [row] = await db
+    .select({ value: count() })
+    .from(projects)
+    .where(and(eq(projects.teamId, teamId), isNull(projects.deletedAt)));
+  return Number(row?.value ?? 0);
 }
 
 /**
@@ -336,6 +371,15 @@ export async function deleteRoom(roomId: number, projectId: number) {
       eq(rooms.projectId, projectId),
       isNull(rooms.deletedAt)
     ));
+}
+
+export async function countRoomsForTeam(teamId: number) {
+  const [row] = await db
+    .select({ value: count() })
+    .from(rooms)
+    .leftJoin(projects, eq(rooms.projectId, projects.id))
+    .where(and(eq(projects.teamId, teamId), isNull(rooms.deletedAt), isNull(projects.deletedAt)));
+  return Number(row?.value ?? 0);
 }
 
 // Layout Jobs Queries
@@ -477,4 +521,18 @@ export async function getRunningJobs() {
     .select()
     .from(layoutJobs)
     .where(eq(layoutJobs.status, JobStatusEnum.RUNNING));
+}
+
+export async function countTeamJobsInMonth(teamId: number, monthStart: Date, monthEnd: Date) {
+  const [row] = await db
+    .select({ value: count() })
+    .from(layoutJobs)
+    .leftJoin(rooms, eq(layoutJobs.roomId, rooms.id))
+    .leftJoin(projects, eq(rooms.projectId, projects.id))
+    .where(and(
+      eq(projects.teamId, teamId),
+      gte(layoutJobs.createdAt, monthStart),
+      lte(layoutJobs.createdAt, monthEnd)
+    ));
+  return Number(row?.value ?? 0);
 }
