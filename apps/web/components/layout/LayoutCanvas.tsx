@@ -28,7 +28,7 @@ export function LayoutCanvas({
   const [viewport, setViewport] = useState<CanvasViewport>(initialViewport);
   const [internalSelectedId, setInternalSelectedId] = useState<string | undefined>(selectedObjectId);
   const { history, historyIndex, addHistoryEntry, undo, redo, canUndo, canRedo } = useSceneHistory();
-  
+
   // Sync external selection
   useEffect(() => {
     setInternalSelectedId(selectedObjectId);
@@ -84,7 +84,7 @@ export function LayoutCanvas({
     },
     [objects, addHistoryEntry]
   );
-  
+
   // Update state when notifying parent
   useEffect(() => {
     onStateChange?.({
@@ -107,18 +107,14 @@ export function LayoutCanvas({
   }, [internalSelectedId, onObjectSelect]);
 
   const handleAddObject = useCallback(
-    (category: string, position: { x: number; y: number }, size: { width: number; height: number }) => {
+    (category: string, position: { x: number; y: number }, dimensions: { width: number; depth: number }) => {
       const newObject: SceneObject2D = {
         id: `obj-${Date.now()}`,
+        type: 'object',
         category,
         position,
-        size,
-        boundingBox: {
-          x: position.x,
-          y: position.y,
-          width: size.width,
-          height: size.height,
-        },
+        rotation: 0,
+        dimensions,
         label: category,
       };
 
@@ -192,5 +188,4 @@ export function LayoutCanvas({
   );
 }
 
-// Export for use in other components
-export { LayoutCanvas };
+

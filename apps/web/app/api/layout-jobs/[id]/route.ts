@@ -34,10 +34,11 @@ const serializeJob = (job: any): LayoutJobStatusResponse => ({
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = paramsSchema.parse(params);
+    const resolvedParams = await params;
+    const { id } = paramsSchema.parse(resolvedParams);
     const jobId = parseInt(id, 10);
 
     if (Number.isNaN(jobId)) {

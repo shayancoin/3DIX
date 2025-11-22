@@ -97,14 +97,9 @@ export function Canvas2D({
       const updatedObjects = objects.map((obj) =>
         obj.id === objectId
           ? {
-              ...obj,
-              position: { x: newX, y: newY },
-              boundingBox: {
-                ...obj.boundingBox,
-                x: newX,
-                y: newY,
-              },
-            }
+            ...obj,
+            position: { x: newX, y: newY },
+          }
           : obj
       );
 
@@ -206,8 +201,8 @@ export function Canvas2D({
           {objects.map((obj) => {
             const x = offsetX + obj.position.x * scale;
             const y = offsetY + obj.position.y * scale;
-            const objWidth = obj.size.width * scale;
-            const objHeight = obj.size.height * scale;
+            const objWidth = obj.dimensions.width * scale;
+            const objHeight = obj.dimensions.depth * scale;
             const isSelected = obj.id === selectedObjectId;
             const color = obj.color || CATEGORY_COLORS[obj.category] || CATEGORY_COLORS.default;
 

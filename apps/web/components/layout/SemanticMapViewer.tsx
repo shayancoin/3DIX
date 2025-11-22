@@ -8,7 +8,7 @@ interface SemanticMapViewerProps {
   objects: LayoutObject[];
   roomWidth?: number;
   roomLength?: number;
-  onObjectClick?: (objectId: string) => void;
+  onObjectClick?: (objectId: string | undefined) => void;
   selectedObjectId?: string;
   selectedId?: string;
 }
@@ -104,7 +104,7 @@ export function SemanticMapViewer({
         ctx.strokeStyle = isSelected ? '#3B82F6' : '#000000';
         ctx.lineWidth = isSelected ? 3 : 1;
         ctx.fillStyle = isSelected ? 'rgba(59, 130, 246, 0.2)' : 'rgba(0, 0, 0, 0.1)';
-        
+
         // Apply rotation
         ctx.save();
         ctx.translate(x + objWidth / 2, z + objDepth / 2);
