@@ -55,10 +55,12 @@ class ConstraintSolver:
 
     def __init__(self, room_config: Dict[str, Any]):
         """
-        Initialize solver with room type configuration.
-
-        Args:
-            room_config: Room type configuration dictionary
+        Create a ConstraintSolver configured for a specific room type.
+        
+        Initializes internal mappings and lists derived from the provided room configuration: category lookup by id, constraints dictionary, zones list, and layout rules list.
+        
+        Parameters:
+            room_config (Dict[str, Any]): Room type configuration dictionary containing keys like 'categories', 'constraints', and 'zones'. The constructor extracts category configs into `self.categories`, constraint data into `self.constraints`, zone definitions into `self.zones`, and layout rules into `self.layout_rules`.
         """
         self.room_config = room_config
         self.categories = {cat['id']: cat for cat in room_config.get('categories', [])}
@@ -182,7 +184,16 @@ class ConstraintSolver:
         )
 
     def _validate_size(self, obj: LayoutObject, category_config: Dict[str, Any]) -> List[ConstraintError]:
-        """Validate object size against category constraints."""
+        """
+        Check whether an object's dimensions violate the category's minimum or maximum size constraints.
+        
+        Parameters:
+            obj (LayoutObject): The layout object whose `size` (3-tuple) is validated.
+            category_config (Dict[str, Any]): Category configuration that may contain `minSize` and `maxSize` as 3-element iterables.
+        
+        Returns:
+            List[ConstraintError]: A list of `ConstraintError` entries with type `size_violation` for each detected size violation; empty if the object size is within the allowed bounds.
+        """
         errors = []
 
         min_size = category_config.get('minSize')
@@ -209,7 +220,16 @@ class ConstraintSolver:
         return errors
 
     def _validate_position(self, obj: LayoutObject, category_config: Dict[str, Any]) -> List[ConstraintError]:
-        """Validate object position against category constraints."""
+        """
+        Validate a layout object's position against room and category placement constraints.
+        
+        Parameters:
+            obj (LayoutObject): The object whose position will be validated.
+            category_config (Dict[str, Any]): Category-specific placement rules; may include `allowedPositions` among other placement settings.
+        
+        Returns:
+            List[ConstraintError]: A list of position-related constraint errors. Each entry indicates a violation such as being outside room bounds, failing a required wall placement, or not being within the required center area.
+        """
         errors = []
 
         allowed_positions = category_config.get('allowedPositions', 'any')
@@ -264,7 +284,21 @@ class ConstraintSolver:
         return errors
 
     def _validate_spacing(self, obj: LayoutObject, all_objects: List[LayoutObject], category_config: Dict[str, Any]) -> List[ConstraintWarning]:
-        """Validate spacing constraints."""
+        """
+        Check spacing rules for a single object against all other objects and produce spacing-related warnings.
+        
+        Examines the category's `spacing` configuration for `minDistance` and `clearance`. If `minDistance` is set, emits a warning when another object's center-to-center distance is less than that value. If `clearance` is set, performs a simple 2D bounding-box overlap check (XZ plane) expanded by the clearance and emits a warning when boxes overlap.
+        
+        Parameters:
+            obj (LayoutObject): The object to validate.
+            all_objects (List[LayoutObject]): All layout objects to compare against (including `obj`).
+            category_config (Dict[str, Any]): Category configuration which may contain a `spacing` dict with:
+                - `minDistance` (float): Minimum required center-to-center distance in meters.
+                - `clearance` (float): Required clearance in meters used to expand the object's bounding box.
+        
+        Returns:
+            List[ConstraintWarning]: Warnings for spacing violations. Each warning has type `spacing_concern` and references the subject object's category and id.
+        """
         warnings = []
 
         spacing = category_config.get('spacing', {})
@@ -322,7 +356,17 @@ class ConstraintSolver:
         return warnings
 
     def _validate_layout_rule(self, rule: Dict[str, Any], objects: List[LayoutObject], objects_by_category: Dict[str, List[LayoutObject]]) -> List[ConstraintWarning]:
-        """Validate a layout rule."""
+        """
+        Validate a single layout rule against the provided layout objects and produce any resulting warnings.
+        
+        Parameters:
+        	rule (Dict[str, Any]): Rule definition containing at least a `type` (e.g., "proximity" or "accessibility"), optional `categoryIds` (list of category ids to which the rule applies), and a `parameters` mapping with rule-specific values (for example, `maxDistance` for proximity or `minClearance` for accessibility).
+        	objects (List[LayoutObject]): All layout objects to evaluate; used to select and compare relevant objects.
+        	objects_by_category (Dict[str, List[LayoutObject]]): Mapping of category id to objects in that category (provided for convenience; the function may use `objects` directly).
+        
+        Returns:
+        	List[ConstraintWarning]: Warnings describing rule violations (e.g., `suboptimal_layout` for objects farther apart than `maxDistance`, or `accessibility_issue` when an object lacks the required clearance).
+        """
         warnings = []
 
         rule_type = rule.get('type')
@@ -378,7 +422,17 @@ class ConstraintSolver:
         return warnings
 
     def _generate_suggestions(self, objects: List[LayoutObject], objects_by_category: Dict[str, List[LayoutObject]], errors: List[ConstraintError]) -> List[ConstraintSuggestion]:
-        """Generate suggestions to fix validation errors."""
+        """
+        Create suggestions to address validation issues, primarily by proposing additions for missing required categories.
+        
+        Parameters:
+            objects (List[LayoutObject]): All layout objects currently in the room.
+            objects_by_category (Dict[str, List[LayoutObject]]): Mapping from category id to list of objects of that category.
+            errors (List[ConstraintError]): Validation errors detected (not directly used for current suggestions but provided for extensibility).
+        
+        Returns:
+            List[ConstraintSuggestion]: A list of suggestions. Each suggestion of type `add_object` includes `category_id`, a `message`, and a `suggested_action` dictionary with `position`, `size`, and `orientation` for the recommended new object.
+        """
         suggestions = []
 
         # Suggest adding missing required objects
@@ -414,13 +468,15 @@ class ConstraintSolver:
 
     def solve_constraints(self, objects: List[LayoutObject]) -> Tuple[List[LayoutObject], ConstraintValidation]:
         """
-        Solve constraints by adjusting object positions and sizes.
-
-        Args:
-            objects: List of layout objects to adjust
-
+        Adjust layout objects to satisfy detected constraints and return the adjusted set with validation results.
+        
+        This method validates the provided objects, applies automated fixes for detectable errors (e.g., nudging objects against a wall when a position violation occurs for categories restricted to wall placement; clamping object sizes to category min/max when a size violation occurs), re-validates the adjusted objects, and returns both the modified object list and the final ConstraintValidation.
+        
+        Parameters:
+            objects (List[LayoutObject]): The input layout objects to validate and potentially adjust.
+        
         Returns:
-            Tuple of (adjusted_objects, validation_result)
+            Tuple[List[LayoutObject], ConstraintValidation]: A tuple where the first element is the list of adjusted LayoutObject instances and the second is the validation result after applying fixes.
         """
         # First validate
         validation = self.validate_layout(objects)
