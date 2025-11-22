@@ -26,7 +26,6 @@ const createJobSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   try {
-    const user = await getUser();
     const ctx = await getTeamWithMembershipForUser();
     if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

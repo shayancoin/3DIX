@@ -22,10 +22,10 @@
 - [x] Verify Step 10 <!-- id: 14 -->
 
 ## Step 11: SaaS Hardening
-- [ ] Implement Auth & Multi-tenancy <!-- id: 15 -->
-- [ ] Implement Billing (Stripe) <!-- id: 16 -->
-- [ ] Implement Analytics UI <!-- id: 17 -->
-- [ ] Verify Step 11 <!-- id: 18 -->
+- [x] Implement Auth & Multi-tenancy <!-- id: 15 -->
+- [x] Implement Billing (Stripe) <!-- id: 16 -->
+- [x] Implement Analytics UI <!-- id: 17 -->
+- [x] Verify Step 11 <!-- id: 18 -->
 
 ## Step 12: Deployment & Scaling
 - [ ] Configure production deployment <!-- id: 19 -->

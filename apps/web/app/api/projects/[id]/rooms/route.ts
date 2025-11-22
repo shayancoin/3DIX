@@ -15,11 +15,11 @@ const createRoomSchema = z.object({
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { projectId } = await params;
-    const projectIdNum = parseInt(projectId, 10);
+    const { id } = await params;
+    const projectIdNum = parseInt(id, 10);
 
     if (isNaN(projectIdNum)) {
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
@@ -50,11 +50,11 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { projectId } = await params;
-    const projectIdNum = parseInt(projectId, 10);
+    const { id } = await params;
+    const projectIdNum = parseInt(id, 10);
 
     if (isNaN(projectIdNum)) {
       return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });

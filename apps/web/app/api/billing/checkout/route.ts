@@ -23,7 +23,13 @@ export async function POST(req: NextRequest) {
     }
     const { team, user } = ctx;
 
-    const body = bodySchema.parse(await req.json());
+    let raw: any = {};
+    try {
+      raw = await req.json();
+    } catch {
+      raw = {};
+    }
+    const body = bodySchema.parse(raw);
     const plan = body.planId ? PLANS[body.planId] : getPlan(team);
     const priceId = body.priceId || getPriceIdForPlan(plan.id);
 
