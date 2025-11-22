@@ -52,11 +52,11 @@ function mapTypeRoomTypeToSchema(type: RoomType): SchemaRoomType {
 }
 
 /**
- * Render the "Create New Room" page with a form and an optional wizard workflow.
+ * Render the New Room page UI with a traditional form and an optional wizard workflow.
  *
- * The component manages local form state, toggles between a traditional form and a wizard, submits room creation requests to the project rooms API, and navigates to the created room on success. It also exposes client-side loading and error states.
+ * Manages local form and wizard state, submits room-creation requests to the project rooms API, navigates to the created room on success, and exposes client-side loading and error states.
  *
- * @returns The React element for the New Room page UI containing the form, wizard entry, and related controls.
+ * @returns The React element for the New Room page UI
  */
 export default function NewRoomPage() {
   const router = useRouter();

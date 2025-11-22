@@ -11,6 +11,14 @@ import { ObjectReplacementPanel } from '@/components/objects/ObjectReplacementPa
 import { useJobPolling } from '@/hooks/useJobPolling';
 import { LayoutCanvasState, VibeSpec, RoomType, SceneObject2D, LayoutObject } from '@3dix/types';
 
+/**
+ * Renders the studio UI for creating, viewing, and editing room layouts across 2D canvas, semantic map, and 3D views.
+ *
+ * Loads room and job data from query parameters, polls job status, synchronizes object selection between views,
+ * converts job response layout data into canvas/scene objects, and provides controls for vibe generation and object replacement.
+ *
+ * @returns The React element for the Studio page UI.
+ */
 export default function StudioPage() {
   const searchParams = useSearchParams();
   const projectId = searchParams.get('project');
