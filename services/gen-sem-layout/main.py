@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional, List, Tuple
+from pydantic import BaseModel, Field
+from typing import Optional, List, Tuple, Literal, Dict, Any
 import os
 import uvicorn
 import numpy as np
@@ -42,6 +42,7 @@ class VibeSpec(BaseModel):
 
 class LayoutRequest(BaseModel):
     room_type: str
+    room_config: Optional[Dict[str, Any]] = None
     arch_mask_url: Optional[str] = None
     mask_type: Optional[str] = "none"
     vibe_spec: VibeSpec
@@ -57,11 +58,30 @@ class SceneObject3D(BaseModel):
     metadata: Optional[dict] = None
 
 
+class ConstraintViolation(BaseModel):
+    id: str
+    constraint_type: str
+    message: str
+    severity: Literal["info", "warning", "error"]
+    metric_value: float
+    threshold: float
+    unit: Optional[str] = None
+    normalized_violation: float
+    object_ids: List[str] = Field(default_factory=list)
+
+
+class ConstraintValidation(BaseModel):
+    satisfied: bool
+    max_violation: float
+    violations: List[ConstraintViolation] = Field(default_factory=list)
+
+
 class LayoutResponse(BaseModel):
     semantic_map_png_url: Optional[str] = None
     objects: List[SceneObject3D]
     world_scale: float
     room_outline: Optional[List[Tuple[float, float]]] = None
+    constraint_validation: Optional[ConstraintValidation] = None
 
 
 # ---------------------------
@@ -224,6 +244,22 @@ async def generate_layout(request: LayoutRequest):
             objects=objects,
             world_scale=0.01,
             room_outline=[(0.0, 0.0), (5.0, 0.0), (5.0, 4.0), (0.0, 4.0)],
+            constraint_validation=ConstraintValidation(
+                satisfied=False,
+                max_violation=1.0,
+                violations=[
+                    ConstraintViolation(
+                        id="generation_failure",
+                        constraint_type="generation_failure",
+                        message="Layout generation failed; using stub response.",
+                        severity="error",
+                        metric_value=1.0,
+                        threshold=1.0,
+                        normalized_violation=1.0,
+                        object_ids=[],
+                    )
+                ],
+            ),
         )
 
 

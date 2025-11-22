@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { getQueuedJobs, updateLayoutJob } from '../lib/db/queries';
 import { JobStatus } from '../lib/jobs/stateMachine';
-import { LayoutRequest, LayoutResponse, RoomType } from '@3dix/types';
+import { LayoutRequest, LayoutResponse, RoomType, ROOM_TYPE_CONFIGS } from '@3dix/types';
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -30,8 +30,10 @@ export const buildStubLayoutResponse = (seed: number): LayoutResponse => ({
 
 const normalizeRequest = (data: any): LayoutRequest => {
   const roomType = (data?.room_type as RoomType) || 'living_room';
+  const baseConfig = ROOM_TYPE_CONFIGS[roomType] ?? ROOM_TYPE_CONFIGS.other;
   return {
     room_type: roomType,
+    room_config: data?.room_config ?? baseConfig,
     arch_mask_url: data?.arch_mask_url,
     mask_type: data?.mask_type || 'none',
     seed: data?.seed ?? crypto.randomInt(1, 10_000),

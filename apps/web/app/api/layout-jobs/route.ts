@@ -7,7 +7,7 @@ import {
   getUser,
 } from '@/lib/db/queries';
 import { JobStatus } from '@/lib/jobs/stateMachine';
-import { VibeSpec } from '@3dix/types';
+import { VibeSpec, ROOM_TYPE_CONFIGS, RoomTypeConfig } from '@3dix/types';
 
 const toVibeSpec = (vibe: any, roomType: string): VibeSpec => {
   return {
@@ -87,8 +87,28 @@ export async function POST(req: NextRequest) {
     }
 
     const roomType = (room as any).roomType || (room as any).type || 'living_room';
+    const baseConfig = ROOM_TYPE_CONFIGS[roomType as keyof typeof ROOM_TYPE_CONFIGS] ?? ROOM_TYPE_CONFIGS.other;
+    const roomConfig: RoomTypeConfig = {
+      ...baseConfig,
+      defaultDimensions: {
+        ...baseConfig.defaultDimensions,
+        width: room.width ?? baseConfig.defaultDimensions.width,
+        length: room.length ?? baseConfig.defaultDimensions.length,
+        height: room.height ?? baseConfig.defaultDimensions.height,
+      },
+      categories: (baseConfig.categories ?? []).map((cat) => ({
+        ...cat,
+        spacing: cat.spacing ? { ...cat.spacing } : undefined,
+        dependencies: cat.dependencies ? [...cat.dependencies] : undefined,
+        conflicts: cat.conflicts ? [...cat.conflicts] : undefined,
+      })),
+      constraints: { ...(baseConfig.constraints ?? {}) },
+      zones: baseConfig.zones ? [...baseConfig.zones] : undefined,
+    };
+
     const requestData = {
       room_type: roomType,
+      room_config: roomConfig,
       arch_mask_url: validated.constraints?.arch_mask_url,
       mask_type: validated.constraints?.mask_type ?? 'none',
       vibe_spec: toVibeSpec(validated.vibe_spec, roomType),

@@ -5,7 +5,7 @@ Validates and adjusts generated layouts based on room type configurations.
 
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # Type definitions (matching TypeScript types)
 @dataclass
@@ -14,38 +14,47 @@ class LayoutObject:
     category: str
     position: Tuple[float, float, float]  # [x, y, z]
     size: Tuple[float, float, float]  # [width, height, depth]
-    orientation: float  # radians
+    orientation: float  # degrees
     metadata: Optional[Dict[str, Any]] = None
 
 @dataclass
-class ConstraintError:
-    type: str
-    category_id: str
-    object_id: Optional[str] = None
-    message: str = ""
-    severity: str = "error"
+class ConstraintViolation:
+    id: str
+    constraint_type: str
+    message: str
+    severity: str
+    metric_value: float
+    threshold: float
+    unit: Optional[str] = None
+    normalized_violation: float = 0.0
+    object_ids: List[str] = field(default_factory=list)
 
-@dataclass
-class ConstraintWarning:
-    type: str
-    category_id: Optional[str] = None
-    object_id: Optional[str] = None
-    message: str = ""
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "constraint_type": self.constraint_type,
+            "message": self.message,
+            "severity": self.severity,
+            "metric_value": float(self.metric_value),
+            "threshold": float(self.threshold),
+            "unit": self.unit,
+            "normalized_violation": float(self.normalized_violation),
+            "object_ids": self.object_ids,
+        }
 
-@dataclass
-class ConstraintSuggestion:
-    type: str
-    category_id: Optional[str] = None
-    object_id: Optional[str] = None
-    message: str = ""
-    suggested_action: Optional[Dict[str, Any]] = None
 
 @dataclass
 class ConstraintValidation:
-    valid: bool
-    errors: List[ConstraintError]
-    warnings: List[ConstraintWarning]
-    suggestions: List[ConstraintSuggestion]
+    satisfied: bool
+    max_violation: float
+    violations: List[ConstraintViolation] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "satisfied": self.satisfied,
+            "max_violation": float(self.max_violation),
+            "violations": [v.to_dict() for v in self.violations],
+        }
 
 
 class ConstraintSolver:
@@ -136,7 +145,7 @@ class ConstraintSolver:
 
         # Check dependencies
         for cat_id, category_config in self.categories.items():
-            dependencies = category_config.get('dependencies', [])
+            dependencies = category_config.get("dependencies", [])
             category_objects = objects_by_category.get(cat_id, [])
 
             if category_objects and dependencies:
@@ -152,7 +161,7 @@ class ConstraintSolver:
 
         # Check conflicts
         for cat_id, category_config in self.categories.items():
-            conflicts = category_config.get('conflicts', [])
+            conflicts = category_config.get("conflicts", [])
             category_objects = objects_by_category.get(cat_id, [])
 
             if category_objects and conflicts:
@@ -478,7 +487,7 @@ class ConstraintSolver:
         Returns:
             Tuple[List[LayoutObject], ConstraintValidation]: A tuple where the first element is the list of adjusted LayoutObject instances and the second is the validation result after applying fixes.
         """
-        # First validate
+        # First validate to collect issues to fix
         validation = self.validate_layout(objects)
 
         # Create a copy to modify
@@ -495,10 +504,13 @@ class ConstraintSolver:
         ]
 
         # Apply fixes for errors
-        for error in validation.errors:
-            if error.type == 'position_violation':
-                # Try to fix position
-                obj = next((o for o in adjusted_objects if o.id == error.object_id), None)
+        for violation in validation.violations:
+            if violation.severity != "error" or violation.normalized_violation <= 0:
+                continue
+
+            if violation.constraint_type in ('position_bounds', 'position_wall', 'position_center'):
+                obj_id = violation.object_ids[0] if violation.object_ids else None
+                obj = next((o for o in adjusted_objects if o.id == obj_id), None)
                 if obj:
                     category_config = self.categories.get(obj.category, {})
                     allowed_positions = category_config.get('allowedPositions', 'any')

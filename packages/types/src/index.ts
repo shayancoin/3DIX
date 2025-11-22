@@ -123,9 +123,31 @@ export interface SceneHistoryEntry {
   };
 }
 
+// Constraint validation metadata
+export type ConstraintSeverity = 'info' | 'warning' | 'error';
+
+export interface ConstraintViolation {
+  id: string;
+  constraint_type: string;
+  message: string;
+  severity: ConstraintSeverity;
+  metric_value: number;
+  threshold: number;
+  unit?: string | null;
+  normalized_violation: number;
+  object_ids: string[];
+}
+
+export interface ConstraintValidation {
+  satisfied: boolean;
+  max_violation: number;
+  violations: ConstraintViolation[];
+}
+
 // Layout Request/Response Types
 export interface LayoutRequest {
   room_type: RoomType;
+  room_config?: any;
   arch_mask_url?: string;
   mask_type?: 'none' | 'floor' | 'arch';
   vibe_spec: VibeSpec;
@@ -138,6 +160,7 @@ export interface LayoutResponse {
   world_scale: number; // meters per pixel or similar
   room_outline?: [number, number][];
   metadata?: Record<string, any>;
+  constraint_validation?: ConstraintValidation | null;
 }
 
 export type GenerationJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';

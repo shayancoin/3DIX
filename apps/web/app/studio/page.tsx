@@ -9,6 +9,7 @@ import { SemanticMapViewer } from '@/components/layout/SemanticMapViewer';
 import { CanvasShell, LayoutScene3D } from '@3dix/three';
 import { ObjectReplacementPanel } from '@/components/objects/ObjectReplacementPanel';
 import { useJobPolling } from '@/hooks/useJobPolling';
+import { ConstraintStatus } from '@/components/design/ConstraintStatus';
 import { LayoutCanvasState, VibeSpec, RoomType, SceneObject2D, LayoutObject } from '@3dix/types';
 
 export default function StudioPage() {
@@ -76,6 +77,7 @@ export default function StudioPage() {
   }, [canvasState, layoutObjects]);
 
   const { job, loading: jobLoading } = useJobPolling(currentJobId);
+  const constraintValidation = (job?.result as any)?.constraint_validation;
 
   // Load room data if roomId is provided
   useEffect(() => {
@@ -235,8 +237,9 @@ export default function StudioPage() {
         <div className="flex-1 flex flex-col min-w-0">
           {/* Job Progress */}
           {currentJobId && (
-            <div className="p-4 border-b bg-white">
+            <div className="p-4 border-b bg-white space-y-3">
               <JobProgress job={job} loading={jobLoading} />
+              <ConstraintStatus validation={constraintValidation} loading={jobLoading} />
             </div>
           )}
 

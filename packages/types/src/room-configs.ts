@@ -79,43 +79,6 @@ export interface RoomZone {
 }
 
 /**
- * Constraint validation result
- */
-export interface ConstraintValidation {
-  valid: boolean;
-  errors: ConstraintError[];
-  warnings: ConstraintWarning[];
-  suggestions: ConstraintSuggestion[];
-}
-
-export interface ConstraintError {
-  type: 'missing_required' | 'count_violation' | 'size_violation' | 'position_violation' | 'spacing_violation' | 'dependency_violation' | 'conflict_violation';
-  categoryId: string;
-  objectId?: string;
-  message: string;
-  severity: 'error' | 'warning';
-}
-
-export interface ConstraintWarning {
-  type: 'suboptimal_layout' | 'accessibility_issue' | 'spacing_concern';
-  categoryId?: string;
-  objectId?: string;
-  message: string;
-}
-
-export interface ConstraintSuggestion {
-  type: 'add_object' | 'move_object' | 'resize_object' | 'remove_object';
-  categoryId?: string;
-  objectId?: string;
-  message: string;
-  suggestedAction?: {
-    position?: [number, number, number];
-    size?: [number, number, number];
-    orientation?: number;
-  };
-}
-
-/**
  * Room type configurations
  */
 export const ROOM_TYPE_CONFIGS: Record<RoomType, RoomTypeConfig> = {
