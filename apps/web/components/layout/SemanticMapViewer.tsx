@@ -88,6 +88,17 @@ export function SemanticMapViewer({
       ctx.setLineDash([]);
     }
 
+    /**
+     * Renders rotated, labeled bounding boxes for all `objects` onto the provided canvas context.
+     *
+     * Scales and centers object positions/sizes to the room dimensions and canvas size, draws each object's filled and stroked rectangle, and places its category label above the box. The currently selected object is drawn with a thicker blue stroke and semi-transparent blue fill.
+     *
+     * Orientation interpretation: if an object's `orientation` has absolute value <= 3 it is treated as a quarter-turn count and multiplied by π/2; otherwise the value is used as a radian angle.
+     *
+     * @param ctx - The 2D rendering context of the target canvas.
+     * @param w - The canvas width in pixels.
+     * @param h - The canvas height in pixels.
+     */
     function drawBoundingBoxes(ctx: CanvasRenderingContext2D, w: number, h: number) {
       const scale = Math.min(w / roomWidth, h / roomLength) * 0.8;
       const offsetX = (w - roomWidth * scale) / 2;

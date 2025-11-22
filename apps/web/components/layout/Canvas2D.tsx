@@ -33,6 +33,27 @@ const CATEGORY_COLORS: Record<string, string> = {
   default: '#6C757D',
 };
 
+/**
+ * Render an interactive 2D room scene with draggable, selectable objects and a pannable / zoomable viewport.
+ *
+ * Renders room bounds, grid, and scene objects (using each object's position, rotation, dimensions, color, label, and category).
+ * User interactions:
+ * - Click an object to select or toggle selection.
+ * - Drag an object to update its position (emits updated objects via `onObjectsChange`).
+ * - Wheel to zoom centered on the cursor (emits viewport updates via `onViewportChange`).
+ *
+ * @param width - Stage width in pixels.
+ * @param height - Stage height in pixels.
+ * @param objects - Array of scene objects to render; each object's `position` and `dimensions` are used for placement and size.
+ * @param viewport - Current viewport state { x, y, zoom } used for pan/zoom calculations.
+ * @param onObjectsChange - Callback invoked with the updated objects array after object position changes.
+ * @param onViewportChange - Callback invoked with the new viewport when the user pans or zooms.
+ * @param selectedObjectId - ID of the currently selected object, if any.
+ * @param onObjectSelect - Callback invoked when selection changes; receives the selected object ID or `undefined`.
+ * @param roomWidth - Room width in meters (used to compute scale); defaults to 5.
+ * @param roomLength - Room length in meters (used to compute scale); defaults to 4.
+ * @returns The Canvas2D React element that displays the interactive scene.
+ */
 export function Canvas2D({
   width,
   height,

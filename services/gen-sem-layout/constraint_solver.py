@@ -468,12 +468,12 @@ class ConstraintSolver:
 
     def solve_constraints(self, objects: List[LayoutObject]) -> Tuple[List[LayoutObject], ConstraintValidation]:
         """
-        Adjust layout objects to satisfy detected constraints and return the adjusted set with validation results.
+        Adjust layout objects to satisfy detectable constraints and produce a validation of the adjusted layout.
         
-        This method validates the provided objects, applies automated fixes for detectable errors (e.g., nudging objects against a wall when a position violation occurs for categories restricted to wall placement; clamping object sizes to category min/max when a size violation occurs), re-validates the adjusted objects, and returns both the modified object list and the final ConstraintValidation.
+        Validates the given objects, applies automatic fixes for detectable errors (e.g., fixes position and size violations), re-validates the adjusted objects, and returns the adjusted list alongside the final ConstraintValidation.
         
         Parameters:
-            objects (List[LayoutObject]): The input layout objects to validate and potentially adjust.
+            objects (List[LayoutObject]): Input layout objects to validate and potentially adjust.
         
         Returns:
             Tuple[List[LayoutObject], ConstraintValidation]: A tuple where the first element is the list of adjusted LayoutObject instances and the second is the validation result after applying fixes.

@@ -21,17 +21,12 @@ const updateJobSchema = z.object({
 });
 
 /**
- * Retrieve a layout job by ID if the requesting user belongs to the job's team.
+ * Retrieve a layout job by ID if the authenticated user belongs to the job's team.
  *
- * Validates the `id` path parameter, verifies the authenticated user and their team,
- * ensures the job exists and belongs to the team's project, and returns the job data.
+ * Validates the `id` path parameter, verifies the current user and their team, ensures the job exists
+ * and is associated with the team's project, and returns the job data.
  *
- * @returns The job object as JSON on success; an error JSON with one of these HTTP status codes on failure:
- * - 400: Invalid job ID or invalid request data
- * - 401: Unauthorized (no current user)
- * - 403: Forbidden (job does not belong to the user's team)
- * - 404: No team found or Job not found
- * - 500: Internal server error
+ * @returns The layout job object as JSON when found and accessible; otherwise an error JSON with an appropriate HTTP status.
  */
 export async function GET(
   req: NextRequest,

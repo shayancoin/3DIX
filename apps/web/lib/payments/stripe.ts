@@ -11,6 +11,14 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-08-27.basil',
 });
 
+/**
+ * Creates a Stripe Checkout Session for subscribing the current user to the specified price and redirects the browser to the Checkout URL.
+ *
+ * If `team` or the current user is missing, redirects to the sign-up page with `redirect=checkout` and the `priceId` query.
+ *
+ * @param team - The team to associate the Checkout session with; its Stripe customer (if present) will be used for the session
+ * @param priceId - The Stripe Price ID to subscribe the user to
+ */
 export async function createCheckoutSession({
   team,
   priceId

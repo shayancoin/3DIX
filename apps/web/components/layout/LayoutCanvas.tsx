@@ -15,6 +15,21 @@ interface LayoutCanvasProps {
   onObjectSelect?: (objectId: string | undefined) => void;
 }
 
+/**
+ * Render a 2D layout editor with object management, selection, and undo/redo controls.
+ *
+ * Renders an interactive canvas and control bar, and keeps internal state for objects,
+ * viewport, selection, and edit history while notifying optional callbacks of state changes.
+ *
+ * @param initialObjects - Initial array of scene objects to populate the canvas.
+ * @param initialViewport - Initial canvas viewport (x, y, zoom).
+ * @param roomWidth - Room width used for rendering/layout scale.
+ * @param roomLength - Room length used for rendering/layout scale.
+ * @param onStateChange - Optional callback invoked whenever objects, viewport, selection, or history change.
+ * @param selectedObjectId - Externally controlled selected object id; when provided the component mirrors this selection.
+ * @param onObjectSelect - Optional callback invoked when the selected object changes; called with the new selected id or `undefined`.
+ * @returns The JSX element containing the canvas and control bar for the layout editor.
+ */
 export function LayoutCanvas({
   initialObjects = [],
   initialViewport = { x: 0, y: 0, zoom: 1 },
@@ -187,5 +202,4 @@ export function LayoutCanvas({
     </div>
   );
 }
-
 

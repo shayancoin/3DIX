@@ -38,6 +38,16 @@ interface RoomWizardProps {
     onCancel: () => void;
 }
 
+/**
+ * Render a three-step wizard UI for creating a new room within a project.
+ *
+ * The wizard collects basic details, lets the user choose a room type, and provides a review/constraint step.
+ * On completion it POSTs the room configuration to the API and navigates to the created room page.
+ *
+ * @param projectId - Identifier of the project the new room will belong to; included in the creation request.
+ * @param onCancel - Callback invoked when the user cancels the wizard (used on the first step or when closing).
+ * @returns The RoomWizard component's JSX element.
+ */
 export function RoomWizard({ projectId, onCancel }: RoomWizardProps) {
     const router = useRouter();
     const [step, setStep] = useState(1);
