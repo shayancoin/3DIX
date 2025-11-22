@@ -115,6 +115,11 @@ export async function GET(req: NextRequest) {
     }
     const { team } = ctx;
 
+    const team = await getTeamForUser();
+    if (!team) {
+      return NextResponse.json({ error: 'No team found' }, { status: 404 });
+    }
+
     const { searchParams } = new URL(req.url);
     const roomId = searchParams.get('roomId');
 

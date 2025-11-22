@@ -14,7 +14,6 @@ import { useJobPolling } from '@/hooks/useJobPolling';
 import { SceneObject3D, SceneObject2D, ConstraintValidation } from '@3dix/types';
 import { MaskControlsState } from '@/components/design/MaskControls';
 import { SemanticMapViewer } from '@/components/layout/SemanticMapViewer';
-import { ConstraintStatus } from '@/components/design/ConstraintStatus';
 
 
 // Dynamically import Canvas2D to avoid SSR issues with Konva

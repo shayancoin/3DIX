@@ -7,8 +7,6 @@ import {
 } from '@/lib/db/queries';
 import { JobStatus } from '@/lib/jobs/stateMachine';
 import { VibeSpec, ROOM_TYPE_CONFIGS, RoomTypeConfig } from '@3dix/types';
-import { ensureJobCapacity } from '@/lib/billing/limits';
-import { hasRequiredRole } from '@/lib/auth/roles';
 
 const toVibeSpec = (vibe: any, roomType: string): VibeSpec => {
   return {
