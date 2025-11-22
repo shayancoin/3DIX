@@ -3,11 +3,11 @@ import { z } from 'zod';
 import {
   getLayoutJob,
   getRoomWithProjectByRoomId,
-  getTeamForUser,
-  getUser,
+  getTeamWithMembershipForUser,
   updateLayoutJob,
 } from '@/lib/db/queries';
 import { JobStatus } from '@/lib/jobs/stateMachine';
+import { hasRequiredRole } from '@/lib/auth/roles';
 
 const updateJobSchema = z.object({
   status: z.enum(['queued', 'running', 'completed', 'failed', 'cancelled']).optional(),
@@ -45,15 +45,11 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid job ID' }, { status: 400 });
     }
 
-    const user = await getUser();
-    if (!user) {
+    const ctx = await getTeamWithMembershipForUser();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const team = await getTeamForUser();
-    if (!team) {
-      return NextResponse.json({ error: 'No team found' }, { status: 404 });
-    }
+    const team = ctx.team;
 
     const job = await getLayoutJob(jobId);
     if (!job) {
@@ -93,15 +89,14 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid job ID' }, { status: 400 });
     }
 
-    const user = await getUser();
-    if (!user) {
+    const ctx = await getTeamWithMembershipForUser();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const team = await getTeamForUser();
-    if (!team) {
-      return NextResponse.json({ error: 'No team found' }, { status: 404 });
+    if (!hasRequiredRole(ctx.role, 'admin')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    const team = ctx.team;
 
     const currentJob = await getLayoutJob(jobId);
     if (!currentJob) {

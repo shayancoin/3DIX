@@ -4,11 +4,12 @@ import {
   createLayoutJob,
   getLayoutJobsForRoom,
   getRoomWithProjectByRoomId,
-  getTeamForUser,
-  getUser,
+  getTeamWithMembershipForUser,
 } from '@/lib/db/queries';
 import { JobStatus } from '@/lib/jobs/stateMachine';
 import { VibeSpec } from '@3dix/types';
+import { hasRequiredRole } from '@/lib/auth/roles';
+import { ensureJobCapacity } from '@/lib/billing/limits';
 
 const createJobSchema = z.object({
   roomId: z.union([z.number(), z.string()]),
@@ -26,14 +27,14 @@ const createJobSchema = z.object({
 export async function POST(req: NextRequest) {
   try {
     const user = await getUser();
-    if (!user) {
+    const ctx = await getTeamWithMembershipForUser();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const team = await getTeamForUser();
-    if (!team) {
-      return NextResponse.json({ error: 'No team found' }, { status: 404 });
+    if (!hasRequiredRole(ctx.role, 'member')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    const { team, user } = ctx;
 
     const body = await req.json();
     const validatedData = createJobSchema.parse(body);
@@ -54,6 +55,11 @@ export async function POST(req: NextRequest) {
 
     if (room.project.teamId !== team.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const capacity = await ensureJobCapacity(team);
+    if (!capacity.ok) {
+      return NextResponse.json({ error: capacity.message, code: capacity.code }, { status: 402 });
     }
 
     const requestData =
@@ -104,15 +110,11 @@ export async function POST(req: NextRequest) {
  */
 export async function GET(req: NextRequest) {
   try {
-    const user = await getUser();
-    if (!user) {
+    const ctx = await getTeamWithMembershipForUser();
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const team = await getTeamForUser();
-    if (!team) {
-      return NextResponse.json({ error: 'No team found' }, { status: 404 });
-    }
+    const { team } = ctx;
 
     const { searchParams } = new URL(req.url);
     const roomId = searchParams.get('roomId');
